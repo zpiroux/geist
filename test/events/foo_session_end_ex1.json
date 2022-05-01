@@ -1,0 +1,26 @@
+{
+   "foo": {
+      "evtType": "FOO_SESSION_END",
+      "ts": [
+         {
+            "label": "someLabel",
+            "time": 1574608103112
+         }
+      ],
+      "evtDate": 1572609899607,
+      "evtVer": "1.10",
+      "evtId": "8a3e850e-0f63-4e2c-9cca-0952a71bb1b5",
+      "custId": "somecust"
+   },
+   "bar": {
+      "stuff": {
+         "sId": "1572608299710-89-KD7FJAGE7C0GO",
+         "pInfo": {
+            "pName": "foo",
+            "pId": 89,
+            "pCur": "SEK"
+         },
+         "pHostIP": "11.22.123.4"
+      }
+   }
+}

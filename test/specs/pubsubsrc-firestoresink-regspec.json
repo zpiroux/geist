@@ -1,0 +1,67 @@
+{
+   "namespace": "geisttest",
+   "streamIdSuffix": "spec-reg",
+   "description": "An example of a simple custom/alternative Spec registration stream, using pubsub as source instead of geistapi.",
+   "version": 1,
+   "source": {
+      "type": "pubsub",
+      "config": {
+         "topics": [
+            {
+               "env": "all",
+               "names": [
+                  "geist-spec-reg"
+               ]
+            }
+         ],
+         "subscription": {
+            "type": "shared",
+            "name": "geist-spec-reg-sub"
+         }
+      }
+   },
+   "transform": {
+      "extractFields": [
+         {
+            "fields": [
+               {
+                  "id": "namespace",
+                  "jsonPath": "namespace"
+               },
+               {
+                  "id": "idSuffix",
+                  "jsonPath": "streamIdSuffix"
+               },
+               {
+                  "id": "rawEvent",
+                  "type": "string"
+               }
+            ]
+         }
+      ]
+   },
+   "sink": {
+      "type": "firestore",
+      "config": {
+         "kinds": [
+            {
+               "name": "EtlSpec",
+               "entityNameFromIds": {
+                  "ids": [
+                     "namespace",
+                     "idSuffix"
+                  ],
+                  "delimiter": "-"
+               },
+               "properties": [
+                  {
+                     "id": "rawEvent",
+                     "name": "specData",
+                     "index": false
+                  }
+               ]
+            }
+         ]
+      }
+   }
+}

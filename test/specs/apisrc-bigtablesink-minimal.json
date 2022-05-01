@@ -1,0 +1,52 @@
+{
+   "namespace": "geisttest",
+   "streamIdSuffix": "apitobigtable",
+   "description": "A stream ingestion of any event posted on GEIST stream API into bigtable.",
+   "version": 1,
+   "ops": {
+      "streamsPerPod": 2
+   },
+   "source": {
+      "type": "geistapi"
+   },
+   "transform": {
+      "extractFields": [
+         {
+            "fields": [
+               {
+                  "id": "rawEvent",
+                  "type": "string"
+               }
+            ]
+         }
+      ]
+   },
+   "sink": {
+      "type": "bigtable",
+      "config": {
+         "tables": [
+            {
+               "name": "geisttest_apitobigtable",
+               "rowKey": {
+                  "predefined": "timestampIso"
+               },
+               "columnFamilies": [
+                  {
+                     "name": "d",
+                     "garbageCollectionPolicy": {
+                        "type": "maxVersions",
+                        "value": 2
+                     },
+                     "columnQualifiers": [
+                        {
+                           "id": "rawEvent",
+                           "name": "event"
+                        }
+                     ]
+                  }
+               ]
+            }
+         ]
+      }
+   }
+}

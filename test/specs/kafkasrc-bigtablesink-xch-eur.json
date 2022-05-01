@@ -1,0 +1,88 @@
+{
+   "namespace": "geisttest",
+   "streamIdSuffix": "xch-eur",
+   "description": "Ingestion of EUR xch rates to BigTable",
+   "version": 2,
+   "ops": {
+      "logEventData": true
+   },
+   "source": {
+      "type": "kafka",
+      "config": {
+         "topics": [
+            {
+               "env": "all",
+               "names": [
+                  "xch.rates"
+               ]
+            }
+         ],
+         "properties": [
+            {
+               "key": "group.id",
+               "value": "geisttest-xch-eur"
+            },
+            {
+               "key": "auto.offset.reset",
+               "value": "earliest"
+            }
+         ]
+      }
+   },
+   "transform": {
+      "extractFields": [
+         {
+            "forEventsWith": [
+               {
+                  "key": "name",
+                  "value": "XCH_RATES_UPDATED"
+               },
+               {
+                  "key": "data.#(base==\"EUR\").base",
+                  "value": "EUR"
+               }
+            ],
+            "fields": [
+               {
+                  "id": "rates",
+                  "jsonPath": "data.#(base==\"EUR\").rates"
+               },
+               {
+                  "id": "eventDate",
+                  "jsonPath": "ts"
+               }
+            ]
+         }
+      ]
+   },
+   "sink": {
+      "type": "bigtable",
+      "config": {
+         "tables": [
+            {
+               "name": "geisttest_xch_eur",
+               "rowKey": {
+                  "keys": [
+                     "eventDate"
+                  ]
+               },
+               "columnFamilies": [
+                  {
+                     "name": "d",
+                     "garbageCollectionPolicy": {
+                        "type": "maxVersions",
+                        "value": 1
+                     },
+                     "columnQualifiers": [
+                        {
+                           "id": "rates",
+                           "name": "rates"
+                        }
+                     ]
+                  }
+               ]
+            }
+         ]
+      }
+   }
+}

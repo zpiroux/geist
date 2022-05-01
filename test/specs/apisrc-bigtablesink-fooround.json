@@ -1,0 +1,89 @@
+{
+   "namespace": "geisttest",
+   "streamIdSuffix": "apitobigtable-fooround",
+   "description": "Ingestion stream from API to BigTable.",
+   "version": 1,
+   "source": {
+      "type": "geistapi"
+   },
+   "transform": {
+      "extractFields": [
+         {
+            "forEventsWith": [
+               {
+                  "key": "foo.evtType",
+                  "value": "FOO_ROUND_FINISHED"
+               }
+            ],
+            "fields": [
+               {
+                  "id": "fooRoundId",
+                  "jsonPath": "bar.stuff.fooRoundId"
+               },
+               {
+                  "id": "rawEventFRF"
+               }
+            ]
+         },
+         {
+            "forEventsWith": [
+               {
+                  "key": "foo.evtType",
+                  "value": "FOO_ROUND_TRACKING"
+               }
+            ],
+            "fields": [
+               {
+                  "id": "fooRoundId",
+                  "jsonPath": "bar.stuff.fooRoundId"
+               },
+               {
+                  "id": "fooTrackingId",
+                  "jsonPath": "bar.stuff.fooTrackingId",
+                  "type": "integer"
+               },
+               {
+                  "id": "rawEventFRT"
+               }
+            ]
+         }
+      ]
+   },
+   "sink": {
+      "type": "bigtable",
+      "config": {
+         "tables": [
+            {
+               "name": "geisttest_apitobigtable_fooround",
+               "rowKey": {
+                  "keys": [
+                     "fooRoundId"
+                  ]
+               },
+               "columnFamilies": [
+                  {
+                     "name": "d",
+                     "garbageCollectionPolicy": {
+                        "type": "maxAge",
+                        "value": 48
+                     },
+                     "columnQualifiers": [
+                        {
+                           "id": "rawEventFRF",
+                           "name": "frf"
+                        },
+                        {
+                           "id": "rawEventFRT",
+                           "nameFromId": {
+                              "prefix": "frt-",
+                              "suffixFromId": "fooTrackingId"
+                           }
+                        }
+                     ]
+                  }
+               ]
+            }
+         ]
+      }
+   }
+}

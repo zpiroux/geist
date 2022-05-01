@@ -1,0 +1,23 @@
+{
+  "foo": {
+    "evtType": "FOO_ROUND_TRACKING",
+    "evtDate": 1581818496173,
+    "evtVer": "1.10",
+    "evtId": "10b279b5-243f-1606-af33-efcad8fd36c7",
+    "custId": "somecust"
+  },
+  "bar": {
+    "stuff": {
+      "fooRoundId": "a9f5e7e7-6020-4eb8-ad16-00e27c3b1ab6",
+      "fooTrackingId": 1,
+      "pInfo": {
+        "pName": "15318974",
+        "pId": 12314,
+        "pCur": "SEK"
+      },
+      "ts": 1581818496173,
+      "someData": "...",
+      "txId": "54625edd-857e-4e28-a2f3-7caa91204121"
+    }
+  }
+}

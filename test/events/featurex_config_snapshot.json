@@ -1,0 +1,92 @@
+{
+   "name": "FEATUREX_CONFIG_SNAPSHOT",
+   "ts": "2020-09-07T13:45:44.559Z",
+   "version": "1.0",
+   "id": "8bd732c9-8aec-4434-8abb-c87777f5b497",
+   "data": [
+      {
+         "custId": "cust1",
+         "prodId": "prod_y",
+         "prodName": "Prod Y",
+         "featurexConfiguration": [
+            {
+               "featurexId": "featurex-id1",
+               "featurexProvider": "provider7",
+               "featurexType": "someType",
+               "someValue": 200.0,
+               "someOtherValue": 400.0
+            },
+            {
+               "featurexId": "featurex-id2",
+               "featurexProvider": "provider7",
+               "featurexType": "someType",
+               "someValue": 300.0,
+               "someOtherValue": 500.0
+            },
+            {
+               "featurexId": "featurex-id3",
+               "featurexProvider": "provider4",
+               "featurexType": "someOtherType",
+               "someValue": 400.0,
+               "someOtherValue": 800.0
+            }
+         ]
+      },
+      {
+         "custId": "cust1",
+         "prodId": "prod_z",
+         "prodName": "Prod Z",
+         "featurexConfiguration": [
+            {
+               "featurexId": "featurex-id1",
+               "featurexProvider": "provider7",
+               "featurexType": "someType",
+               "someValue": 200.0,
+               "someOtherValue": 400.0
+            },
+            {
+               "featurexId": "featurex-id2",
+               "featurexProvider": "provider7",
+               "featurexType": "someType",
+               "someValue": 300.0,
+               "someOtherValue": 500.0
+            },
+            {
+               "featurexId": "featurex-id3",
+               "featurexProvider": "provider4",
+               "featurexType": "someOtherType",
+               "someValue": 400.0,
+               "someOtherValue": 800.0
+            }
+         ]
+      },
+      {
+         "custId": "cust2",
+         "prodId": "prod_x",
+         "prodName": "Prod X",
+         "featurexConfiguration": [
+            {
+               "featurexId": "featurex-id4",
+               "featurexProvider": "provider4",
+               "featurexType": "someType",
+               "someValue": 10.0,
+               "someOtherValue": 30.0
+            },
+            {
+               "featurexId": "featurex-id5",
+               "featurexProvider": "provider7",
+               "featurexType": "someType",
+               "someValue": 50.0,
+               "someOtherValue": 70.0
+            },
+            {
+               "featurexId": "featurex-id6",
+               "featurexProvider": "provider7",
+               "featurexType": "someOtherType",
+               "someValue": 20.0,
+               "someOtherValue": 90.0
+            }
+         ]
+      }
+   ]
+}

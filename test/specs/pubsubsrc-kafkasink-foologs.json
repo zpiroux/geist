@@ -1,0 +1,58 @@
+{
+   "namespace": "geisttest",
+   "streamIdSuffix": "foologanalytics",
+   "description": "A stream for transforming Foo log data into SystemX events, to provide interactive Foo log analytic capabilities, including cost-efficient metric creation.",
+   "version": 1,
+   "source": {
+      "type": "pubsub",
+      "config": {
+         "topics": [
+            {
+               "env": "all",
+               "names": [
+                  "geisttest-foologanalytics"
+               ]
+            }
+         ],
+         "subscription": {
+            "type": "shared",
+            "name": "geist-foologdata"
+         }
+      }
+   },
+   "transform": {
+      "extractFields": [
+         {
+            "fields": [
+               {
+                  "id": "payload"
+               }
+            ]
+         }
+      ]
+   },
+   "sink": {
+      "type": "kafka",
+      "config": {
+         "topic": [
+            {
+               "env": "all",
+               "topicSpec": {
+                  "name": "geisttest.foologdatasink",
+                  "numPartitions": 6,
+                  "replicationFactor": 3
+               }
+            }
+         ],
+         "properties": [
+            {
+               "key": "client.id",
+               "value": "geisttest_foologanalytics"
+            }
+         ],
+         "message": {
+            "payloadFromId": "payload"
+         }
+      }
+   }
+}

@@ -1,0 +1,25 @@
+{
+   "namespace": "geisttest",
+   "streamIdSuffix": "eventlogstream",
+   "description": "A spec for a minimal stream, using GEIST API as source, and log events in void sink.",
+   "version": "0.0.1",
+   "source": {
+      "type": "geistapi"
+   },
+   "transform": {
+      "implId": "native",
+      "extractFields": [
+         {
+            "fields": [
+               {
+                  "id": "rawEvent",
+                  "type": "string"
+               }
+            ]
+         }
+      ]
+   },
+   "sink": {
+      "type": "void"
+   }
+}

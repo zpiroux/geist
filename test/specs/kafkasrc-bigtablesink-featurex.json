@@ -1,0 +1,93 @@
+{
+   "namespace": "geisttest",
+   "streamIdSuffix": "featurex",
+   "description": "Feature config data stream from Kafka to BigTable",
+   "version": 1,
+   "ops": {
+      "logEventData": true
+   },
+   "source": {
+      "type": "kafka",
+      "config": {
+         "provider": "confluent",
+         "topics": [
+            {
+               "env": "dev",
+               "names": [
+                  "fxservice.events.dev"
+               ]
+            },
+            {
+               "env": "stage",
+               "names": [
+                  "fxservice.events.stage"
+               ]
+            },
+            {
+               "env": "prod",
+               "names": [
+                  "fxservice.events"
+               ]
+            }
+         ],
+         "properties": [
+            {
+               "key": "group.id",
+               "value": "geisttest-kafkatobigtable-featurex"
+            }
+         ]
+      }
+   },
+   "transform": {
+      "extractItemsFromArray": [
+         {
+            "id": "arrayItemsMapId",
+            "forEventsWith": [
+               {
+                  "key": "name",
+                  "value": "FEATUREX_CONFIG_SNAPSHOT"
+               }
+            ],
+            "items": {
+               "jsonPathToArray": "data",
+               "idFromItemFields": {
+                  "delimiter": "#",
+                  "fields": [
+                     "custId",
+                     "prodId"
+                  ]
+               }
+            }
+         }
+      ]
+   },
+   "sink": {
+      "type": "bigtable",
+      "config": {
+         "tables": [
+            {
+               "name": "geisttest_featurex",
+               "rowKey": {
+                  "predefined": "keysInMap",
+                  "mapId": "arrayItemsMapId"
+               },
+               "columnFamilies": [
+                  {
+                     "name": "d",
+                     "garbageCollectionPolicy": {
+                        "type": "maxVersions",
+                        "value": 1
+                     },
+                     "columnQualifiers": [
+                        {
+                           "id": "arrayItemsMapId",
+                           "name": "fxConfig"
+                        }
+                     ]
+                  }
+               ]
+            }
+         ]
+      }
+   }
+}

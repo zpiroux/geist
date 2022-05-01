@@ -1,0 +1,25 @@
+{
+   "foo": {
+      "evtType": "FOO_SESSION_BEGIN",
+      "ts": [
+         {
+            "label": "someLabel",
+            "time": 1572608299514
+         }
+      ],
+      "evtDate": 1572608299343,
+      "evtVer": "1.10",
+      "evtId": "e2d35069-6747-4368-bc44-e897f1dbe1a1",
+      "custId": "somecust"
+   },
+   "bar": {
+      "stuff": {
+         "sId": "855f4462-05ab-4134-9c82-27d07e0e5a63",
+         "pInfo": {
+            "pName": "somename",
+            "pId": 89,
+            "pCur": "SEK"
+         }
+      }
+   }
+}

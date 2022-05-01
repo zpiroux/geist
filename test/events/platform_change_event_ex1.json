@@ -1,0 +1,20 @@
+{
+   "name": "FOO_SERVER_UPDATED",
+   "ts": "2019-06-20T13:56:18.279Z",
+   "version": "1.0",
+   "id": "4b7321f9-0c5b-4e9e-ae2b-513b501f55b3",
+   "cid": "342670",
+   "actor": "zzz",
+   "location": {
+      "node": "some-node",
+      "cluster": "some-cluster",
+      "site": "some-site",
+      "service": "foo"
+   },
+   "data": {
+      "prodId": "some-product",
+      "filename": "some.file",
+      "someInfo": "...",
+      "serverId": "some-server"
+   }
+}

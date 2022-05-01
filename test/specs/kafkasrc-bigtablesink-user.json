@@ -1,0 +1,103 @@
+{
+   "namespace": "foons",
+   "streamIdSuffix": "user",
+   "description": "Some user data",
+   "version": 1,
+   "ops": {
+      "streamsPerPod": 1
+   },
+   "source": {
+      "type": "kafka",
+      "config": {
+         "topics": [
+            {
+               "env": "all",
+               "names": [
+                  "foo.events"
+               ]
+            }
+         ],
+         "properties": [
+            {
+               "key": "group.id",
+               "value": "foons_some_user_data"
+            }
+         ]
+      }
+   },
+   "transform": {
+      "extractFields": [
+         {
+            "forEventsWith": [
+               {
+                  "key": "foo.evtType",
+                  "value": "FOO_SESSION_BEGIN"
+               }
+            ],
+            "fields": [
+               {
+                  "id": "custId",
+                  "jsonPath": "foo.custId"
+               },
+               {
+                  "id": "sessionId",
+                  "jsonPath": "bar.stuff.sId"
+               },
+               {
+                  "id": "pId",
+                  "jsonPath": "bar.stuff.pInfo.pId",
+                  "type": "integer"
+               },
+               {
+                  "id": "pName",
+                  "jsonPath": "bar.stuff.pInfo.pName"
+               },
+               {
+                  "id": "pCurrency",
+                  "jsonPath": "bar.stuff.pInfo.pCur"
+               }
+            ]
+         }
+      ]
+   },
+   "sink": {
+      "type": "bigtable",
+      "config": {
+         "tables": [
+            {
+               "name": "some_user_data",
+               "rowKey": {
+                  "keys": [
+                     "custId",
+                     "pId"
+                  ],
+                  "delimiter": "#"
+               },
+               "columnFamilies": [
+                  {
+                     "name": "d",
+                     "garbageCollectionPolicy": {
+                        "type": "maxVersions",
+                        "value": 10
+                     },
+                     "columnQualifiers": [
+                        {
+                           "id": "sessionId",
+                           "name": "sid"
+                        },
+                        {
+                           "id": "pName",
+                           "name": "pn"
+                        },
+                        {
+                           "id": "pCurrency",
+                           "name": "pc"
+                        }
+                     ]
+                  }
+               ]
+            }
+         ]
+      }
+   }
+}

@@ -1,0 +1,226 @@
+package engine
+
+import (
+	"context"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/teltech/logger"
+	"github.com/zpiroux/geist/internal/pkg/igeist"
+	"github.com/zpiroux/geist/internal/pkg/model"
+)
+
+const (
+	defaultInitialStreamExtractRetryBackoffDuration = 4
+	defaultInitialStreamLoadRetryBackoffDuration    = 2
+	defaultEventLogInterval                         = 500
+	defaultMaxStreamRetryIntervalSec                = 240
+)
+
+// Stream ETL Executors operates an ETL stream, from Source to Transform to Sink, as specified by
+// a single GEIST stream spec. The stream it is executing is configured and instantiated by the Supervisor.
+type Executor struct {
+	config             Config
+	stream             igeist.Stream
+	ctx                context.Context    // Child ctx for shutting down Extractor
+	cancel             context.CancelFunc // CancelFunc for shutting down Extractor
+	id                 string
+	log                *logger.Log // log not thread safe so can't share unmutexed log across subroutines
+	shutdownInProgress bool        // TODO: not important but add mutex on this
+	events             int64       // nb events processed
+}
+
+func NewExecutor(config Config, stream igeist.Stream) *Executor {
+
+	e := &Executor{
+		config: config,
+		stream: stream,
+		id:     stream.Instance(),
+		log:    logger.New(),
+	}
+	if e.config.EventLogInterval == 0 {
+		e.config.EventLogInterval = defaultEventLogInterval
+	}
+	if e.config.MaxStreamRetryIntervalSec == 0 {
+		e.config.MaxStreamRetryIntervalSec = defaultMaxStreamRetryIntervalSec
+	}
+	if e.valid() {
+		return e
+	}
+	return nil
+}
+
+func (e *Executor) valid() bool {
+	return e.stream.Spec() != nil &&
+		e.stream.Extractor() != nil &&
+		e.stream.Transformer() != nil &&
+		e.stream.Loader() != nil
+}
+
+func (e *Executor) StreamId() string {
+	return e.stream.Spec().Id()
+}
+
+func (e *Executor) Stream() igeist.Stream {
+	return e.stream
+}
+
+func (e *Executor) Run(ctx context.Context, wg *sync.WaitGroup) {
+	var (
+		err       error
+		retryable bool
+	)
+
+	e.ctx, e.cancel = context.WithCancel(ctx)
+
+	defer wg.Done()
+	e.log.Info(e.lgprfx() + "Starting up")
+
+	// Infinite retries with exponential backoff interval, for max self-healing when having retryable errors.
+	// For unretryable errors it depends on the stream's config value Ops.HandlingOfUnretryableEvents.
+	// If that is set to HoueDlq or HoueDiscard, the Extractor.StreamExtract will take care of those internally.
+	// If set to HoueFail the loop will exit and extractor terminate. Stream needs to be restarted manually
+	// (or at least externally). For other details on Houe modes, see model.Spec.Ops.
+	backoffDuration := defaultInitialStreamExtractRetryBackoffDuration
+	for i := 0; ; i++ {
+
+		e.stream.Extractor().StreamExtract(e.ctx, e.ProcessEvent, &err, &retryable)
+
+		if err != nil && ctx.Err() != context.Canceled {
+			e.log.Errorf(e.lgprfx()+"StreamExtract returned with error: %s, retryable: %v", err.Error(), retryable)
+			if retryable {
+				e.log.Warnf(e.lgprfx()+"stream restart (#%d) in %d seconds", i, backoffDuration)
+				if !sleepCtx(ctx, time.Duration(backoffDuration)*time.Second) {
+					break
+				}
+				if backoffDuration < e.config.MaxStreamRetryIntervalSec {
+					backoffDuration *= 2
+				}
+				continue
+			}
+		}
+		break
+	}
+
+	e.log.Infof(e.lgprfx()+"finished. Events processed: %d", e.events)
+}
+
+// ProcessEvent is called by Extractor when event extracted from source.
+// This design is chosen instead of a channel based one, to ensure efficient and reliable offset commit/pubsub ack
+// only when sink success is ensured. It also reduces transloading latency to a minimum.
+// TODO: Add better description and usage of the key parameter (it is currently sent by Kafka Extractors,
+// as the message key).
+// If event processing is successful result.Error will be nil, and result.Status will be set to ExecutorStatusSuccessful.
+// If executor is shutting down, result.Error will be non-nil and result.Status will be set to ExecutorStatusShuttingDown
+func (e *Executor) ProcessEvent(ctx context.Context, events []model.Event) model.EventProcessingResult {
+
+	var (
+		result      = model.EventProcessingResult{Status: model.ExecutorStatusError}
+		transformed []*model.Transformed
+	)
+
+	if e.shutdownInProgress {
+		log.Warnf("rejecting event processing due to shutdown in progress, rejected events: %v", events)
+		result.Error = nil
+		result.Status = model.ExecutorStatusShutdown
+		return result
+	}
+
+	for _, event := range events {
+		atomic.AddInt64(&e.events, 1)
+		if e.events%int64(e.config.EventLogInterval) == 0 {
+			e.log.Infof(e.lgprfx()+"[metric] nb events processed: %d", e.events)
+		}
+
+		result.Retryable = true
+		var transEvent []*model.Transformed
+		transEvent, result.Error = e.stream.Transformer().Transform(ctx, event.Data, &result.Retryable)
+		if result.Error != nil {
+			return result
+		}
+		if e.logEventData() {
+			e.log.Debugf(e.lgprfx()+"event transformed into: %v", transEvent)
+		}
+
+		transformed = append(transformed, transEvent...)
+	}
+
+	if len(transformed) == 0 {
+		result.Status = model.ExecutorStatusSuccessful
+		return result
+	}
+
+	loadAttempts := 0
+	backoffDuration := defaultInitialStreamLoadRetryBackoffDuration
+
+	for ; loadAttempts <= e.maxRetryAttempts(); loadAttempts++ {
+
+		result.ResourceId, result.Error, result.Retryable = e.stream.Loader().StreamLoad(ctx, transformed)
+
+		if result.Error == nil {
+			result.Status = model.ExecutorStatusSuccessful
+			break
+		}
+
+		if ctx.Err() == context.Canceled {
+			log.Infof(e.lgprfx()+"context canceled during StreamLoad, err: %v", result.Error)
+			result.Status = model.ExecutorStatusShutdown
+			return result
+		}
+
+		if result.Error == model.ErrEntityShutdownRequested {
+			log.Infof(e.lgprfx() + "loader requested shutdown during StreamLoad")
+			result.Status = model.ExecutorStatusShutdown
+			return result
+		}
+
+		if result.Retryable && loadAttempts < e.maxRetryAttempts() {
+			log.Warnf(e.lgprfx()+"StreamLoad() failed with error: %v, issuing retry attempt #%d, in %d seconds", result.Error, loadAttempts+1, backoffDuration)
+			if !sleepCtx(ctx, time.Duration(backoffDuration)*time.Second) {
+				break
+			}
+			log.Infof(e.lgprfx()+"issuing retry attempt #%d, after backoff %d seconds", loadAttempts+1, backoffDuration)
+			backoffDuration = 2 * backoffDuration
+			continue
+		} else {
+			// It's either a non-retryable error, or a retryable one exceeding retry limit, both of which should
+			// terminate the retry loop
+			break
+		}
+	}
+
+	if result.Error != nil && result.Retryable {
+		log.Errorf(e.lgprfx()+"giving up retrying after %d attempts, raw events: %v, transformed event: %+v", loadAttempts, events, transformed)
+		result.Status = model.ExecutorStatusRetriesExhausted
+		// From here, it's up to each extractor to handle DLQ logic
+	}
+
+	return result
+}
+
+func (e *Executor) Shutdown() {
+	e.shutdownInProgress = true // TODO: protect with mutex (not urgent)
+	e.log.Info(e.lgprfx() + "Shutting down")
+
+	// Shut down Extractor
+	if e.cancel != nil {
+		e.cancel()
+	} else {
+		e.log.Warn(e.lgprfx() + "Shutdown request received before started running")
+	}
+
+	e.stream.Loader().Shutdown()
+}
+
+func (e *Executor) maxRetryAttempts() int {
+	return e.stream.Spec().(*model.Spec).Ops.MaxEventProcessingRetries
+}
+
+func (e *Executor) logEventData() bool {
+	return e.stream.Spec().(*model.Spec).Ops.LogEventData
+}
+
+func (e *Executor) lgprfx() string {
+	return "[executor:" + e.id + "](stream: " + e.StreamId() + ") "
+}
