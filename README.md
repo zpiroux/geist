@@ -85,7 +85,6 @@ go get github.com/zpiroux/geist-connector-gcp
 Register connectors prior to starting up Geist with (error handling omitted):
 ```go
 import (
-    ...
 	"github.com/zpiroux/geist"
 	gbigtable "github.com/zpiroux/geist-connector-gcp/bigtable"
 	gkafka "github.com/zpiroux/geist-connector-kafka"
@@ -109,6 +108,18 @@ g, err := geist.New(ctx, geistConfig)
 The service using Geist could in this way also register its own custom connectors, provided they adhere to the connector interfaces, etc.
 
 For a complete working example, see the [Emitter Stream](test/example/emitterstream/main.go).
+
+### Validated source connectors
+* [Kafka (vanilla and Confluent)](https://github.com/zpiroux/geist-connector-kafka)
+* [Pubsub (GCP)](https://github.com/zpiroux/geist-connector-gcp)
+* Geist API (natively supported)
+
+### Validated sink connectors
+* [Kafka (vanilla and Confluent)](https://github.com/zpiroux/geist-connector-kafka)
+* [Firestore (GCP)](https://github.com/zpiroux/geist-connector-gcp)
+* [BigTable (GCP)](https://github.com/zpiroux/geist-connector-gcp)
+* [BigQuery (GCP)](https://github.com/zpiroux/geist-connector-gcp)
+
 ## Enrichment and custom stream logic
 The native transformation entity provides a set of common transformations.
 But to provide complete flexibility, adding capabilities for the Geist user to add custom logic such as enrichment of events, deduplication, complex filtering (if the native transform options are insufficient), etc, a client-managed hook function can be set in `geist.Config` prior to calling `geist.New()`.
@@ -170,17 +181,6 @@ When a Geist host pod is started, either from a new deployment or pod scaling, a
 The default native spec is found in [regspec.go](internal/pkg/admin/regspec.go).
 
 Any cross-pod synchronization, e.g. notification of newly updated stream specs, is done with an internal admin stream. It is managed and customizable in similar fashion as the Reg Spec and found in [adminspec.go](internal/pkg/admin/adminspec.go).
-
-## Validated source connectors
-* Kafka (vanilla and Confluent)
-* Pubsub (GCP)
-* Geist API
-
-## Validated sink connectors
-* Kafka (vanilla and Confluent)
-* Firestore (GCP)
-* BigTable (GCP)
-* BigQuery (GCP)
 
 ## Stream Spec Format
 A stream spec has the following main fields/parts (additional fields are described further below):

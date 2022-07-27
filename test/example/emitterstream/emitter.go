@@ -41,17 +41,18 @@ type emitter struct {
 	emitInterval int
 }
 
+type Event struct {
+	EventId   int    `json:"eventId"`
+	Timestamp int    `json:"ts"`
+	Info      string `json:"info"`
+}
+
 func (e *emitter) StreamExtract(
 	ctx context.Context,
 	reportEvent entity.ProcessEventFunc,
 	err *error,
 	retryable *bool) {
 
-	type Event struct {
-		EventId   int    `json:"eventId"`
-		Timestamp int    `json:"ts"`
-		Info      string `json:"info"`
-	}
 	var evt Event
 
 	for {
