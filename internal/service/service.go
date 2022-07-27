@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"sync"
 
 	"github.com/teltech/logger"
 	"github.com/zpiroux/geist/internal/pkg/assembly"
@@ -16,17 +17,18 @@ func init() {
 	log = logger.New()
 }
 
-// Service is responsible for creating and injecting concrete implementations of the various parts required by GEIST to function.
+// Service is responsible for creating and injecting concrete implementations
+// of the various parts required by GEIST to function.
 type Service struct {
 	config        Config
 	entityFactory *assembly.StreamEntityFactory
 	registry      *registry.StreamRegistry
 	streamBuilder *engine.StreamBuilder
 	supervisor    *engine.Supervisor
+	ready         sync.WaitGroup
 }
 
 type Config struct {
-	ProjectId       string // TODO: Change to be part of a GCP config
 	AdminStreamSpec []byte
 	Registry        registry.Config
 	Engine          engine.Config
@@ -47,34 +49,33 @@ func New(ctx context.Context, cfg Config) (*Service, error) {
 		err error
 	)
 
-	for {
-
-		if err = s.initConfig(cfg); err != nil {
-			break
-		}
-
-		if err = s.initGcpServices(ctx); err != nil {
-			break
-		}
-
-		s.initengine()
-
-		if err = s.initRegistry(ctx); err != nil {
-			break
-		}
-
-		if err = s.initSupervisor(ctx); err != nil {
-			break
-		}
-
-		break
+	if err = s.initConfig(cfg); err != nil {
+		return &s, err
 	}
+
+	s.initengine()
+
+	if err = s.initRegistry(ctx); err != nil {
+		return &s, err
+	}
+
+	err = s.initSupervisor(ctx)
+
+	// Set the amount of participants to wait for before allowing further use of GEIST API
+	// after starting it up with Run.
+	// Currently we'll only be waiting for Supervisor to complete its startup process in
+	// Supervisor.Run().
+	s.ready.Add(1)
 
 	return &s, err
 }
 
 func (s *Service) Run(ctx context.Context) error {
-	return s.supervisor.Run(ctx)
+	return s.supervisor.Run(ctx, &s.ready)
+}
+
+func (s *Service) AwaitReady() {
+	s.ready.Wait()
 }
 
 func (s *Service) Shutdown(ctx context.Context, err error) {
@@ -88,7 +89,14 @@ func (s *Service) Registry() *registry.StreamRegistry {
 
 func (s *Service) Stream(streamId string) (*engine.Stream, error) {
 	stream, err := s.supervisor.Stream(streamId)
+	if err != nil {
+		return nil, err
+	}
 	return stream.(*engine.Stream), err
+}
+
+func (s *Service) Entities() map[string]map[string]bool {
+	return s.entityFactory.Entities()
 }
 
 func (s *Service) String() string {

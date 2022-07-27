@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/zpiroux/geist/internal/pkg/model"
+	"github.com/zpiroux/geist/entity"
 )
 
 type MockExtractor struct {
-	spec model.SourceConfig
+	spec entity.SourceConfig
 }
 
-func NewMockExtractor(spec model.SourceConfig) *MockExtractor {
+func NewMockExtractor(spec entity.SourceConfig) *MockExtractor {
 	return &MockExtractor{
 		spec: spec,
 	}
@@ -19,21 +19,21 @@ func NewMockExtractor(spec model.SourceConfig) *MockExtractor {
 
 func (m *MockExtractor) StreamExtract(
 	ctx context.Context,
-	reportEvent model.ProcessEventFunc,
+	reportEvent entity.ProcessEventFunc,
 	err *error,
 	retryable *bool) {
 
 	var event = "Yo!"
-	result := reportEvent(ctx, []model.Event{{Data: []byte(event), Ts: time.Now(), Key: []byte("key")}})
+	result := reportEvent(ctx, []entity.Event{{Data: []byte(event), Ts: time.Now(), Key: []byte("key")}})
 	*err = result.Error
 	*retryable = result.Retryable
 }
 
-func (m *MockExtractor) Extract(ctx context.Context, query model.ExtractorQuery, result any) (error, bool) {
+func (m *MockExtractor) Extract(ctx context.Context, query entity.ExtractorQuery, result any) (error, bool) {
 	return nil, false
 }
 
-func (m *MockExtractor) ExtractFromSink(ctx context.Context, query model.ExtractorQuery, result *[]*model.Transformed) (error, bool) {
+func (m *MockExtractor) ExtractFromSink(ctx context.Context, query entity.ExtractorQuery, result *[]*entity.Transformed) (error, bool) {
 	return nil, false
 }
 

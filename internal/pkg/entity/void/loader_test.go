@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/zpiroux/geist/internal/pkg/entity/transform"
-	"github.com/zpiroux/geist/internal/pkg/model"
+	"github.com/zpiroux/geist/entity"
+	"github.com/zpiroux/geist/entity/transform"
 )
 
 func TestProperties(t *testing.T) {
@@ -14,19 +14,21 @@ func TestProperties(t *testing.T) {
 	retryable := false
 	event := []byte("Hi there!")
 	ctx := context.Background()
-	spec, err := model.NewSpec(specBytes)
+	spec, err := entity.NewSpec(specBytes)
 	assert.NoError(t, err)
 	transformer := transform.NewTransformer(spec)
 	transformed, err := transformer.Transform(ctx, event, &retryable)
 	assert.NoError(t, err)
 
-	l, err := NewLoader(spec)
-	assert.NoError(t, err)
+   lf := NewLoaderFactory()
 
-	assert.Equal(t, "true", l.props["logEventData"])
+	l, err := lf.NewLoader(context.Background(), spec, "someId")
+	assert.NoError(t, err)
+   voidLoader := l.(*loader)
+
+	assert.Equal(t, "true", voidLoader.props["logEventData"])
 
 	l.StreamLoad(ctx, transformed)
-
 }
 
 var specBytes = []byte(`{

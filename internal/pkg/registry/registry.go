@@ -8,8 +8,9 @@ import (
 	"sync"
 
 	"github.com/teltech/logger"
+	"github.com/zpiroux/geist/entity"
+	"github.com/zpiroux/geist/internal/pkg/admin"
 	"github.com/zpiroux/geist/internal/pkg/igeist"
-	"github.com/zpiroux/geist/internal/pkg/model"
 )
 
 var log *logger.Log
@@ -18,12 +19,12 @@ func init() {
 	log = logger.New()
 }
 
-// Regardless of DB implementation for Registry, it requires the ETL spec to use RawEventField as the
-// key for storing each spec.
+// Regardless of DB implementation for Registry, it requires the ETL spec to use
+// RawEventField as the key for storing each spec.
 const RawEventField = "rawEvent"
 
 type Config struct {
-	StorageMode model.RegStorageMode
+	StorageMode admin.RegStorageMode
 	RegSpec     []byte // currently only needed outside during initialization of StreamRegistry
 }
 
@@ -32,7 +33,7 @@ type Config struct {
 // service via GEIST REST API, ingesting specs in an ETL Stream with arbitrary Sinks/Loaders.
 type StreamRegistry struct {
 	config      Config
-	loader      igeist.Loader          // where to store the specs
+	loader      entity.Loader          // where to store the specs
 	executor    igeist.Executor        // internal handling of stream registrations
 	adminStream igeist.Stream          // for sending registry change events
 	specs       map[string]igeist.Spec // in-mem cache of specs
@@ -47,7 +48,7 @@ func NewStreamRegistry(config Config, executor igeist.Executor) *StreamRegistry 
 	}
 }
 
-func (r *StreamRegistry) SetLoader(loader igeist.Loader) {
+func (r *StreamRegistry) SetLoader(loader entity.Loader) {
 	r.loader = loader
 }
 
@@ -66,15 +67,15 @@ func (r *StreamRegistry) Put(ctx context.Context, id string, spec igeist.Spec) e
 }
 
 func (r *StreamRegistry) Fetch(ctx context.Context) error {
-	var updatedSpecs []*model.Transformed
+	var updatedSpecs []*entity.Transformed
 
 	// TODO: For now, return here if embedded libmode active, since we don't have any Firestore or similar
 	// to fetch from. All specs are already cached in-mem from the ProcessEvent/Put ops.
-	if r.config.StorageMode == model.RegStorageInMemory {
+	if r.config.StorageMode == admin.RegStorageInMemory {
 		return nil
 	}
 
-	query := model.ExtractorQuery{Type: model.All}
+	query := entity.ExtractorQuery{Type: entity.QueryTypeAll}
 	err, retryable := r.executor.Stream().ExtractFromSink(ctx, query, &updatedSpecs)
 
 	if err != nil {
@@ -85,7 +86,7 @@ func (r *StreamRegistry) Fetch(ctx context.Context) error {
 	log.Debug(r.lgprfx() + "Updating Registry with all persisted specs.")
 	for _, specData := range updatedSpecs {
 		rawData := []byte(specData.Data[RawEventField].(string))
-		spec, err := model.NewSpec(rawData)
+		spec, err := entity.NewSpec(rawData)
 		if err != nil {
 			log.Errorf(r.lgprfx()+"stored spec is corrupt and will be disregarded, err: %s, specData: %s", err.Error(), string(rawData))
 			continue
@@ -118,7 +119,7 @@ func (r *StreamRegistry) Exists(id string) bool {
 }
 
 func (r *StreamRegistry) ExistsSameVersion(specBytes []byte) (bool, error) {
-	spec, err := model.NewSpec(specBytes)
+	spec, err := entity.NewSpec(specBytes)
 	if err != nil {
 		return false, err
 	}
@@ -127,7 +128,7 @@ func (r *StreamRegistry) ExistsSameVersion(specBytes []byte) (bool, error) {
 		return false, nil
 	}
 
-	if spec.Version == existingSpec.(*model.Spec).Version {
+	if spec.Version == existingSpec.(*entity.Spec).Version {
 		return true, nil
 	}
 
@@ -135,7 +136,7 @@ func (r *StreamRegistry) ExistsSameVersion(specBytes []byte) (bool, error) {
 }
 
 func (r *StreamRegistry) Validate(specBytes []byte) (igeist.Spec, error) {
-	return model.NewSpec(specBytes)
+	return entity.NewSpec(specBytes)
 }
 
 func (r *StreamRegistry) SetAdminStream(stream igeist.Stream) {
@@ -170,7 +171,7 @@ func (r *StreamRegistry) Run(ctx context.Context, wg *sync.WaitGroup) {
 	log.Infof(r.lgprfx()+"Executor with Stream ID %s finished, err: %v", r.executor.StreamId(), err)
 }
 
-func (r *StreamRegistry) ProcessEvent(ctx context.Context, events []model.Event) model.EventProcessingResult {
+func (r *StreamRegistry) ProcessEvent(ctx context.Context, events []entity.Event) entity.EventProcessingResult {
 
 	result := r.executor.ProcessEvent(ctx, events)
 
@@ -202,9 +203,9 @@ func (r *StreamRegistry) sendRegistryModifiedEvent(ctx context.Context, streamId
 	// Inform all GEIST pods' Supervisors that the Registry repository has been updated with
 	// something, e.g. new or updated spec, so they can update cached specs with a new Fetch() and
 	// start up any new ETL Streams.
-	event := model.NewAdminEvent(
-		model.EventStreamRegistryModified,
-		model.OperationStreamRegistration,
+	event := admin.NewAdminEvent(
+		admin.EventStreamRegistryModified,
+		admin.OperationStreamRegistration,
 		streamId)
 
 	eventBytes, err := json.Marshal(event)
@@ -221,13 +222,13 @@ func (r *StreamRegistry) sendRegistryModifiedEvent(ctx context.Context, streamId
 	return err
 }
 
-func getSpecFromEvent(events []model.Event) (*model.Spec, error) {
+func getSpecFromEvent(events []entity.Event) (*entity.Spec, error) {
 
 	if len(events) == 0 {
 		return nil, fmt.Errorf("no event data to create stream spec from")
 	}
 
-	spec := model.NewEmptySpec()
+	spec := entity.NewEmptySpec()
 	err := json.Unmarshal(events[0].Data, spec)
 	return spec, err
 }

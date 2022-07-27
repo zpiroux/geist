@@ -3,7 +3,7 @@ package etltest
 import (
 	"context"
 
-	"github.com/zpiroux/geist/internal/pkg/model"
+	"github.com/zpiroux/geist/entity"
 )
 
 type MockLoader struct {
@@ -13,7 +13,7 @@ func NewMockLoader() *MockLoader {
 	return &MockLoader{}
 }
 
-func (s *MockLoader) StreamLoad(ctx context.Context, data []*model.Transformed) (string, error, bool) {
+func (s *MockLoader) StreamLoad(ctx context.Context, data []*entity.Transformed) (string, error, bool) {
 	return "", nil, false
 }
 

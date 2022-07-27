@@ -3,18 +3,18 @@ package igeist
 import (
 	"context"
 
-	"github.com/zpiroux/geist/internal/pkg/model"
+	"github.com/zpiroux/geist/entity"
 )
 
 type Stream interface {
 	Spec() Spec
 	Instance() string
-	Extractor() Extractor
+	Extractor() entity.Extractor
 	Transformer() Transformer
-	Loader() Loader
+	Loader() entity.Loader
 	Publish(ctx context.Context, event []byte) (string, error)
 	ExtractFromSink(
 		ctx context.Context,
-		query model.ExtractorQuery,
-		result *[]*model.Transformed) (error, bool)
+		query entity.ExtractorQuery,
+		result *[]*entity.Transformed) (error, bool)
 }

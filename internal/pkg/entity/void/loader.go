@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/teltech/logger"
-	"github.com/zpiroux/geist/internal/pkg/model"
+	"github.com/zpiroux/geist/entity"
 )
 
 var log *logger.Log
@@ -17,16 +17,39 @@ func init() {
 	log = logger.New()
 }
 
-const inMemRegistryMode = "inMemRegistrySink"
+const sinkTypeId = "void"
+
+type LoaderFactory struct {
+}
+
+func NewLoaderFactory() entity.LoaderFactory {
+	return &LoaderFactory{}
+}
+
+func (lf *LoaderFactory) SinkId() string {
+	return sinkTypeId
+}
+
+func (lf *LoaderFactory) NewLoader(ctx context.Context, spec *entity.Spec, id string) (entity.Loader, error) {
+	return newLoader(spec)
+}
+
+func (lf *LoaderFactory) NewSinkExtractor(ctx context.Context, spec *entity.Spec, id string) (entity.Extractor, error) {
+	return nil, nil
+}
+
+func (lf *LoaderFactory) Close() error {
+	return nil
+}
 
 type loader struct {
-	spec         *model.Spec
+	spec         *entity.Spec
 	props        map[string]string
 	maxErrors    int
 	numberErrors int
 }
 
-func NewLoader(spec *model.Spec) (*loader, error) {
+func newLoader(spec *entity.Spec) (*loader, error) {
 	l := &loader{
 		spec:      spec,
 		props:     make(map[string]string),
@@ -47,7 +70,10 @@ func NewLoader(spec *model.Spec) (*loader, error) {
 	return l, nil
 }
 
-func (l *loader) StreamLoad(ctx context.Context, data []*model.Transformed) (string, error, bool) {
+// inMemRegistryMode is used for internal test purposes
+const inMemRegistryMode = "inMemRegistrySink"
+
+func (l *loader) StreamLoad(ctx context.Context, data []*entity.Transformed) (string, error, bool) {
 
 	var (
 		err        error
@@ -89,7 +115,7 @@ func (l *loader) StreamLoad(ctx context.Context, data []*model.Transformed) (str
 			}
 
 			specData := data[0].Data["rawEvent"].(string)
-			spec, err := model.NewSpec([]byte(specData))
+			spec, err := entity.NewSpec([]byte(specData))
 			if err != nil {
 				return resourceId, fmt.Errorf("could not create Stream Spec from event data in in-mem Reg Sink StreamLoad, error: %s", err), false
 			}
@@ -99,7 +125,7 @@ func (l *loader) StreamLoad(ctx context.Context, data []*model.Transformed) (str
 
 	if value, ok := l.props["logEventData"]; ok {
 		if value == "true" {
-			log.Infof("event received in Void sink StreamLoad: %s", data[0].String())
+			log.Infof("[voidsink] transformed.String() = %s", data[0].String())
 		}
 	}
 

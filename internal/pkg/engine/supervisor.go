@@ -8,8 +8,9 @@ import (
 	"sync"
 
 	"github.com/teltech/logger"
+	"github.com/zpiroux/geist/entity"
 	"github.com/zpiroux/geist/internal/pkg/igeist"
-	"github.com/zpiroux/geist/internal/pkg/model"
+	"github.com/zpiroux/geist/internal/pkg/admin"
 )
 
 var log *logger.Log
@@ -18,14 +19,14 @@ func init() {
 	log = logger.New()
 }
 
-// Supervisor is responsible for high-level lifecycle management for ETL streams. It initializes and starts up one
-// or more Executor(s) per Stream Spec, in its own goroutine. Each Executor is given a newly created ETL
-// Stream entity, comprising Extractor, Transformer and Loader objects, based on Spec and Deployment config.
+// Supervisor is responsible for high-level lifecycle management of Geist streams. It initializes and starts up one
+// or more Executor(s) per Stream Spec, in its own goroutine. Each Executor is given a newly created Stream entity
+// comprising Extractor, Transformer and Loader objects, based on Spec and Deployment config.
 type Supervisor struct {
 	config        Config
 	registry      igeist.StreamRegistry
 	streamBuilder igeist.StreamBuilder
-	eventHandler  igeist.Loader
+	eventHandler  entity.Loader
 	archivist     *executorArchivist
 	wgExecutors   sync.WaitGroup
 	instanceId    string
@@ -63,7 +64,7 @@ func (s *Supervisor) Init(ctx context.Context) error {
 	}
 	for _, sp := range specs {
 
-		spec := sp.(*model.Spec)
+		spec := sp.(*entity.Spec)
 		if spec.IsDisabled() {
 			log.Infof(s.lgprfx()+"stream %s is disabled and will not be assigned to an executor", spec.Id())
 			continue
@@ -82,8 +83,8 @@ func (s *Supervisor) Registry() igeist.StreamRegistry {
 	return s.registry
 }
 
-// Run is the main entry point for GEIST execution of all ETL Streams
-func (s *Supervisor) Run(ctx context.Context) error {
+// Run is the main entry point for GEIST execution of all streams
+func (s *Supervisor) Run(ctx context.Context, ready *sync.WaitGroup) error {
 
 	var nbExecutorsDeployed int
 	executorMap := s.archivist.GrantExclusiveAccess()
@@ -96,6 +97,9 @@ func (s *Supervisor) Run(ctx context.Context) error {
 	log.Infof(s.lgprfx()+"%d executors deployed", nbExecutorsDeployed)
 	s.archivist.RevokeExclusiveAccess()
 
+	// Everything is up and running, including all previously registered streams.
+	ready.Done()
+	// Wait for all stream executors to finish operations
 	s.wgExecutors.Wait()
 	log.Info(s.lgprfx() + "All Executors finished operations. Supervisor shutting down.")
 	return nil
@@ -132,7 +136,7 @@ func (s *Supervisor) Stream(id string) (igeist.Stream, error) {
 	return executors[0].Stream(), nil
 }
 
-func (s *Supervisor) createStreams(ctx context.Context, spec *model.Spec) error {
+func (s *Supervisor) createStreams(ctx context.Context, spec *entity.Spec) error {
 
 	executorMap := s.archivist.GrantExclusiveAccess()
 	defer s.archivist.RevokeExclusiveAccess()
@@ -204,10 +208,10 @@ func (s *Supervisor) RegisterExecutor(ctx context.Context, executor igeist.Execu
 	(*executorMap)[id] = executors
 }
 
-func (s *Supervisor) handleStreamRegistryModified(ctx context.Context, event model.AdminEvent) (error, bool) {
+func (s *Supervisor) handleStreamRegistryModified(ctx context.Context, event admin.AdminEvent) (error, bool) {
 
 	switch event.Data[0].Operation {
-	case model.OperationStreamRegistration:
+	case admin.OperationStreamRegistration:
 
 		err := s.registry.Fetch(ctx)
 		if err != nil {
@@ -221,7 +225,7 @@ func (s *Supervisor) handleStreamRegistryModified(ctx context.Context, event mod
 			return fmt.Errorf(s.lgprfx() + "registry.Get() returned a nil spec"), false
 		}
 
-		streamSpec := spec.(*model.Spec)
+		streamSpec := spec.(*entity.Spec)
 		if streamSpec.IsDisabled() {
 			log.Infof(s.lgprfx()+"New spec version is disabled for streamId '%s', just shutting down old one", streamSpec.Id())
 			s.shutdownStream(ctx, streamSpec.Id())
@@ -253,7 +257,7 @@ func (s *Supervisor) lgprfx() string {
 }
 
 // AdminEventHandler returns the event receiver for admin events from pubsub
-func (s *Supervisor) AdminEventHandler() igeist.Loader {
+func (s *Supervisor) AdminEventHandler() entity.Loader {
 	return s.eventHandler
 }
 
@@ -265,7 +269,7 @@ type AdminEventHandler struct {
 	id         string
 }
 
-func (a *AdminEventHandler) StreamLoad(ctx context.Context, data []*model.Transformed) (string, error, bool) {
+func (a *AdminEventHandler) StreamLoad(ctx context.Context, data []*entity.Transformed) (string, error, bool) {
 
 	for _, transformed := range data {
 		log.Debugf(a.lgprfx()+"Received transformed event in AdminEventHandler.StreamLoad(): %s", transformed.String())
@@ -275,12 +279,12 @@ func (a *AdminEventHandler) StreamLoad(ctx context.Context, data []*model.Transf
 		return "", errors.New(a.lgprfx() + "StreamLoad called without data to load"), false
 	}
 
-	eventName := data[0].Data[model.EventNameKey]
+	eventName := data[0].Data[admin.EventNameKey]
 	switch eventName {
 
-	case model.EventStreamRegistryModified:
-		var event model.AdminEvent
-		eventData := data[0].Data[model.EventRawDataKey]
+	case admin.EventStreamRegistryModified:
+		var event admin.AdminEvent
+		eventData := data[0].Data[admin.EventRawDataKey]
 		err := json.Unmarshal([]byte(eventData.(string)), &event) // TODO: possibly remove string type in admin event spec
 		if err != nil {
 			return "", err, false

@@ -2,13 +2,15 @@ package engine
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/teltech/logger"
+	"github.com/zpiroux/geist/entity"
 	"github.com/zpiroux/geist/internal/pkg/igeist"
-	"github.com/zpiroux/geist/internal/pkg/model"
 )
 
 const (
@@ -18,7 +20,12 @@ const (
 	defaultMaxStreamRetryIntervalSec                = 240
 )
 
-// Stream ETL Executors operates an ETL stream, from Source to Transform to Sink, as specified by
+var (
+	ErrHookUnretryableError = errors.New("PreTransfromHookFunc reported unretryable error")
+	ErrHookInvalidAction = errors.New("PreTransfromHookFunc returned invalid action value")
+)
+
+// Stream Executors operates an ETL stream, from Source to Transform to Sink, as specified by
 // a single GEIST stream spec. The stream it is executing is configured and instantiated by the Supervisor.
 type Executor struct {
 	config             Config
@@ -52,6 +59,9 @@ func NewExecutor(config Config, stream igeist.Stream) *Executor {
 }
 
 func (e *Executor) valid() bool {
+	if e.stream == nil {
+		return false
+	}
 	return e.stream.Spec() != nil &&
 		e.stream.Extractor() != nil &&
 		e.stream.Transformer() != nil &&
@@ -74,14 +84,21 @@ func (e *Executor) Run(ctx context.Context, wg *sync.WaitGroup) {
 
 	e.ctx, e.cancel = context.WithCancel(ctx)
 
-	defer wg.Done()
+	defer func() {
+		// Protection against badly written extractor/source plugins
+		if r := recover(); r != nil {
+			e.log.Errorf(e.lgprfx()+"panic (%v) in StreamExtract() for spec %s, terminating stream", r, e.stream.Spec().JSON())
+		}
+		wg.Done()
+	}()
+
 	e.log.Info(e.lgprfx() + "Starting up")
 
 	// Infinite retries with exponential backoff interval, for max self-healing when having retryable errors.
 	// For unretryable errors it depends on the stream's config value Ops.HandlingOfUnretryableEvents.
 	// If that is set to HoueDlq or HoueDiscard, the Extractor.StreamExtract will take care of those internally.
 	// If set to HoueFail the loop will exit and extractor terminate. Stream needs to be restarted manually
-	// (or at least externally). For other details on Houe modes, see model.Spec.Ops.
+	// (or at least externally). For other details on Houe modes, see entity.Spec.Ops.
 	backoffDuration := defaultInitialStreamExtractRetryBackoffDuration
 	for i := 0; ; i++ {
 
@@ -113,17 +130,24 @@ func (e *Executor) Run(ctx context.Context, wg *sync.WaitGroup) {
 // as the message key).
 // If event processing is successful result.Error will be nil, and result.Status will be set to ExecutorStatusSuccessful.
 // If executor is shutting down, result.Error will be non-nil and result.Status will be set to ExecutorStatusShuttingDown
-func (e *Executor) ProcessEvent(ctx context.Context, events []model.Event) model.EventProcessingResult {
+func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) entity.EventProcessingResult {
 
 	var (
-		result      = model.EventProcessingResult{Status: model.ExecutorStatusError}
-		transformed []*model.Transformed
+		result      = entity.EventProcessingResult{Status: entity.ExecutorStatusError}
+		transformed []*entity.Transformed
 	)
 
+	defer func() {
+		// Protection against badly written loader/sink plugins or external hook logic
+		if r := recover(); r != nil {
+			e.log.Errorf(e.lgprfx()+"panic (%v) in ProcessEvent() for spec %s", r, e.stream.Spec().JSON())
+		}
+	}()
+
 	if e.shutdownInProgress {
-		log.Warnf("rejecting event processing due to shutdown in progress, rejected events: %v", events)
+		e.log.Warnf("rejecting event processing due to shutdown in progress, rejected events: %v", events)
 		result.Error = nil
-		result.Status = model.ExecutorStatusShutdown
+		result.Status = entity.ExecutorStatusShutdown
 		return result
 	}
 
@@ -133,8 +157,37 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []model.Event) model
 			e.log.Infof(e.lgprfx()+"[metric] nb events processed: %d", e.events)
 		}
 
+		// Apply injection of stream processing logic if requested
+		if e.config.PreTransformHookFunc != nil {
+
+			action := e.config.PreTransformHookFunc(ctx, &event.Data)
+
+			switch action {
+			case entity.HookActionProceed:
+				// event processing to continue as normal
+			case (entity.HookActionSkip):
+				result.Status = entity.ExecutorStatusSuccessful
+				result.Error = nil
+				result.Retryable = false
+				return result
+			case (entity.HookActionUnretryableError):
+				result.Status = entity.ExecutorStatusError
+				result.Error = ErrHookUnretryableError
+				result.Retryable = false
+				return result
+			case (entity.HookActionShutdown):
+				result.Status = entity.ExecutorStatusShutdown
+				return result
+			default:
+				result.Status = entity.ExecutorStatusError
+				result.Error = fmt.Errorf("%w : %v", ErrHookInvalidAction, action)
+				result.Retryable = false
+				return result
+			}
+		}
+
 		result.Retryable = true
-		var transEvent []*model.Transformed
+		var transEvent []*entity.Transformed
 		transEvent, result.Error = e.stream.Transformer().Transform(ctx, event.Data, &result.Retryable)
 		if result.Error != nil {
 			return result
@@ -147,7 +200,7 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []model.Event) model
 	}
 
 	if len(transformed) == 0 {
-		result.Status = model.ExecutorStatusSuccessful
+		result.Status = entity.ExecutorStatusSuccessful
 		return result
 	}
 
@@ -159,28 +212,28 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []model.Event) model
 		result.ResourceId, result.Error, result.Retryable = e.stream.Loader().StreamLoad(ctx, transformed)
 
 		if result.Error == nil {
-			result.Status = model.ExecutorStatusSuccessful
+			result.Status = entity.ExecutorStatusSuccessful
 			break
 		}
 
 		if ctx.Err() == context.Canceled {
-			log.Infof(e.lgprfx()+"context canceled during StreamLoad, err: %v", result.Error)
-			result.Status = model.ExecutorStatusShutdown
+			e.log.Infof(e.lgprfx()+"context canceled during StreamLoad, err: %v", result.Error)
+			result.Status = entity.ExecutorStatusShutdown
 			return result
 		}
 
-		if result.Error == model.ErrEntityShutdownRequested {
-			log.Infof(e.lgprfx() + "loader requested shutdown during StreamLoad")
-			result.Status = model.ExecutorStatusShutdown
+		if result.Error == entity.ErrEntityShutdownRequested {
+			e.log.Infof(e.lgprfx() + "loader requested shutdown during StreamLoad")
+			result.Status = entity.ExecutorStatusShutdown
 			return result
 		}
 
 		if result.Retryable && loadAttempts < e.maxRetryAttempts() {
-			log.Warnf(e.lgprfx()+"StreamLoad() failed with error: %v, issuing retry attempt #%d, in %d seconds", result.Error, loadAttempts+1, backoffDuration)
+			e.log.Warnf(e.lgprfx()+"StreamLoad() failed with error: %v, issuing retry attempt #%d, in %d seconds", result.Error, loadAttempts+1, backoffDuration)
 			if !sleepCtx(ctx, time.Duration(backoffDuration)*time.Second) {
 				break
 			}
-			log.Infof(e.lgprfx()+"issuing retry attempt #%d, after backoff %d seconds", loadAttempts+1, backoffDuration)
+			e.log.Infof(e.lgprfx()+"issuing retry attempt #%d, after backoff %d seconds", loadAttempts+1, backoffDuration)
 			backoffDuration = 2 * backoffDuration
 			continue
 		} else {
@@ -191,8 +244,8 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []model.Event) model
 	}
 
 	if result.Error != nil && result.Retryable {
-		log.Errorf(e.lgprfx()+"giving up retrying after %d attempts, raw events: %v, transformed event: %+v", loadAttempts, events, transformed)
-		result.Status = model.ExecutorStatusRetriesExhausted
+		e.log.Errorf(e.lgprfx()+"giving up retrying after %d attempts, raw events: %v, transformed event: %+v", loadAttempts, events, transformed)
+		result.Status = entity.ExecutorStatusRetriesExhausted
 		// From here, it's up to each extractor to handle DLQ logic
 	}
 
@@ -214,11 +267,11 @@ func (e *Executor) Shutdown() {
 }
 
 func (e *Executor) maxRetryAttempts() int {
-	return e.stream.Spec().(*model.Spec).Ops.MaxEventProcessingRetries
+	return e.stream.Spec().(*entity.Spec).Ops.MaxEventProcessingRetries
 }
 
 func (e *Executor) logEventData() bool {
-	return e.stream.Spec().(*model.Spec).Ops.LogEventData
+	return e.stream.Spec().(*entity.Spec).Ops.LogEventData
 }
 
 func (e *Executor) lgprfx() string {

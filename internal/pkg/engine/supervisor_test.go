@@ -4,14 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/zpiroux/geist/internal/pkg/entity/transform"
+	"github.com/zpiroux/geist/entity"
+	"github.com/zpiroux/geist/entity/transform"
+	"github.com/zpiroux/geist/internal/pkg/admin"
 	"github.com/zpiroux/geist/internal/pkg/etltest"
 	"github.com/zpiroux/geist/internal/pkg/igeist"
-	"github.com/zpiroux/geist/internal/pkg/model"
 )
 
 const (
@@ -33,10 +35,12 @@ type participants struct {
 func TestSupervisor(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	p := gatherParticipants(t, ctx)
+	ready := &sync.WaitGroup{}
+	ready.Add(1)
 
 	go doStuff(cancel)
 
-	err := p.supervisor.Run(ctx)
+	err := p.supervisor.Run(ctx, ready)
 	assert.NoError(t, err)
 }
 
@@ -47,9 +51,11 @@ func TestAdminEventHandler_StreamLoad(t *testing.T) {
 
 	p := gatherParticipants(t, ctx)
 	adminEventHandler := p.supervisor.AdminEventHandler()
+	ready := &sync.WaitGroup{}
+	ready.Add(1)
 
 	go func() {
-		err := p.supervisor.Run(ctx)
+		err := p.supervisor.Run(ctx, ready)
 		assert.NoError(t, err)
 	}()
 
@@ -69,9 +75,11 @@ func TestUpgradingOneExecutor(t *testing.T) {
 
 	p := gatherParticipants(t, ctx)
 	adminEventHandler := p.supervisor.AdminEventHandler()
+	ready := &sync.WaitGroup{}
+	ready.Add(1)
 
 	go func() {
-		err := p.supervisor.Run(ctx)
+		err := p.supervisor.Run(ctx, ready)
 		assert.NoError(t, err)
 	}()
 
@@ -90,9 +98,9 @@ func TestUpgradingOneExecutor(t *testing.T) {
 	time.Sleep(2 * time.Second)
 }
 
-func createTransformationOutput(t *testing.T) []*model.Transformed {
+func createTransformationOutput(t *testing.T) []*entity.Transformed {
 	retryable := false
-	spec, err := model.NewSpec(model.AdminEventSpec)
+	spec, err := entity.NewSpec(admin.AdminEventSpec)
 	assert.NoError(t, err)
 	assert.NotNil(t, spec)
 
@@ -109,9 +117,9 @@ func createTransformationOutput(t *testing.T) []*model.Transformed {
 
 func createRegistryModifiedEvent(streamId string) ([]byte, error) {
 
-	event := model.NewAdminEvent(
-		model.EventStreamRegistryModified,
-		model.OperationStreamRegistration,
+	event := admin.NewAdminEvent(
+		admin.EventStreamRegistryModified,
+		admin.OperationStreamRegistration,
 		streamId)
 
 	return json.Marshal(event)
@@ -146,7 +154,7 @@ func doStuff(cancel context.CancelFunc) {
 
 func (p participants) createAdminEventStream(t *testing.T, ctx context.Context) {
 	p.factory.SetAdminLoader(p.supervisor.AdminEventHandler())
-	spec, err := model.NewSpec(model.AdminEventSpec)
+	spec, err := entity.NewSpec(admin.AdminEventSpec)
 	assert.NoError(t, err)
 
 	stream, err := p.builder.Build(ctx, spec)

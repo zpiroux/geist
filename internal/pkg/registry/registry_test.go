@@ -10,11 +10,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/teltech/logger"
+	"github.com/zpiroux/geist/entity"
+	"github.com/zpiroux/geist/entity/transform"
+	"github.com/zpiroux/geist/internal/pkg/admin"
 	"github.com/zpiroux/geist/internal/pkg/engine"
-	"github.com/zpiroux/geist/internal/pkg/entity/transform"
 	"github.com/zpiroux/geist/internal/pkg/etltest"
 	"github.com/zpiroux/geist/internal/pkg/igeist"
-	"github.com/zpiroux/geist/internal/pkg/model"
 )
 
 var (
@@ -26,7 +27,7 @@ func TestStreamRegistry_Fetch(t *testing.T) {
 
 	log = log.WithLevel(logger.DEBUG)
 
-	config := Config{StorageMode: model.RegStorageNative}
+	config := Config{StorageMode: admin.RegStorageNative}
 	printTestOutput = false
 	tReg = t
 	ctx := context.Background()
@@ -47,7 +48,7 @@ func TestStreamRegistry_Fetch(t *testing.T) {
 
 	tPrintf("\n%s\n", "registry.GetAll() returned:")
 	for _, spec := range specs {
-		tPrintf("Spec with data: %+v\n\n", spec.(*model.Spec))
+		tPrintf("Spec with data: %+v\n\n", spec.(*entity.Spec))
 	}
 
 	// TODO: Add test for in-mem
@@ -66,13 +67,13 @@ func TestStreamRegistry_Fetch(t *testing.T) {
 
 	tPrintf("\n%s\n", "registry.GetAll() returned:")
 	for _, spec := range specs {
-		tPrintf("Spec with data: %+v\n\n", spec.(*model.Spec))
+		tPrintf("Spec with data: %+v\n\n", spec.(*entity.Spec))
 	}
 }
 
 type RegStreamEntityFactoryMock struct{}
 
-func (r *RegStreamEntityFactoryMock) CreateSinkExtractor(ctx context.Context, spec igeist.Spec) (igeist.Extractor, error) {
+func (r *RegStreamEntityFactoryMock) CreateSinkExtractor(ctx context.Context, spec igeist.Spec) (entity.Extractor, error) {
 
 	m := NewMockSinkExtractor()
 	m.loadEventIntoSink(tReg, "../../../test/specs/pubsubsrc-kafkasink-foologs.json")
@@ -81,19 +82,19 @@ func (r *RegStreamEntityFactoryMock) CreateSinkExtractor(ctx context.Context, sp
 	return m, nil
 }
 
-func (r *RegStreamEntityFactoryMock) CreateExtractor(ctx context.Context, spec igeist.Spec) (igeist.Extractor, error) {
-	return etltest.NewMockExtractor(spec.(*model.Spec).Source.Config), nil
+func (r *RegStreamEntityFactoryMock) CreateExtractor(ctx context.Context, spec igeist.Spec) (entity.Extractor, error) {
+	return etltest.NewMockExtractor(spec.(*entity.Spec).Source.Config), nil
 }
 func (r *RegStreamEntityFactoryMock) CreateTransformer(ctx context.Context, spec igeist.Spec) (igeist.Transformer, error) {
-	return etltest.NewMockTransformer(model.Transform{}), nil
+	return etltest.NewMockTransformer(entity.Transform{}), nil
 }
-func (r *RegStreamEntityFactoryMock) CreateLoader(ctx context.Context, spec igeist.Spec) (igeist.Loader, error) {
+func (r *RegStreamEntityFactoryMock) CreateLoader(ctx context.Context, spec igeist.Spec) (entity.Loader, error) {
 	return etltest.NewMockLoader(), nil
 }
 
 type MockSinkExtractor struct {
 	Transformer *transform.Transformer
-	specRepo    []*model.Transformed
+	specRepo    []*entity.Transformed
 }
 
 func NewMockSinkExtractor() *MockSinkExtractor {
@@ -105,18 +106,18 @@ func NewMockSinkExtractor() *MockSinkExtractor {
 
 func (m *MockSinkExtractor) StreamExtract(
 	ctx context.Context,
-	reportEvent model.ProcessEventFunc,
+	reportEvent entity.ProcessEventFunc,
 	err *error,
 	retryable *bool) {
 
 	*err = errors.New("not applicable")
 }
 
-func (m *MockSinkExtractor) Extract(ctx context.Context, query model.ExtractorQuery, result any) (error, bool) {
+func (m *MockSinkExtractor) Extract(ctx context.Context, query entity.ExtractorQuery, result any) (error, bool) {
 	return nil, false
 }
 
-func (m *MockSinkExtractor) ExtractFromSink(ctx context.Context, query model.ExtractorQuery, result *[]*model.Transformed) (error, bool) {
+func (m *MockSinkExtractor) ExtractFromSink(ctx context.Context, query entity.ExtractorQuery, result *[]*entity.Transformed) (error, bool) {
 
 	// For now, assume it's an 'All' query
 	*result = append(*result, m.specRepo...)

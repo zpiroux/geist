@@ -7,7 +7,8 @@ import (
 	"time"
 
 	"github.com/teltech/logger"
-	"github.com/zpiroux/geist/internal/pkg/model"
+	"github.com/zpiroux/geist/entity"
+	"github.com/zpiroux/geist/internal/pkg/admin"
 )
 
 var log *logger.Log
@@ -16,35 +17,56 @@ func init() {
 	log = logger.New()
 }
 
-type Extractor struct {
-	id         string
-	specId     string
-	sourceChan model.EventChannel
+const sourceTypeId = "geistapi"
+
+type ExtractorFactory struct {
 }
 
-func NewExtractor(specId string, id string) (*Extractor, error) {
+func NewExtractorFactory() entity.ExtractorFactory {
+	return &ExtractorFactory{}
+}
+
+func (lf *ExtractorFactory) SourceId() string {
+	return sourceTypeId
+}
+
+func (lf *ExtractorFactory) NewExtractor(ctx context.Context, spec *entity.Spec, id string) (entity.Extractor, error) {
+	return newExtractor(spec.Id(), id)
+}
+
+func (lf *ExtractorFactory) Close() error {
+	return nil 
+}
+
+type extractor struct {
+	id         string
+	specId     string
+	sourceChan admin.EventChannel
+}
+
+func newExtractor(specId string, id string) (*extractor, error) {
 
 	var (
 		err       error
-		extractor Extractor
+		extractor extractor
 	)
 	extractor.id = id
 	extractor.specId = specId
-	extractor.sourceChan = make(model.EventChannel)
+	extractor.sourceChan = make(admin.EventChannel)
 
-	log.Debugf(extractor.lgprfx()+"NewExtractor with specId: %+v", specId)
+	log.Debugf(extractor.lgprfx()+"Newextractor with specId: %+v", specId)
 	return &extractor, err
 }
 
-func (e *Extractor) StreamExtract(
+func (e *extractor) StreamExtract(
 	ctx context.Context,
-	reportEvent model.ProcessEventFunc,
+	reportEvent entity.ProcessEventFunc,
 	err *error,
 	retryable *bool) {
 
 	log.Debugf(e.lgprfx() + "Starting up StreamExtract")
 
-	var event model.ChanEvent
+	var event admin.ChanEvent
 
 	for {
 		select {
@@ -56,7 +78,7 @@ func (e *Extractor) StreamExtract(
 
 		case event = <-e.sourceChan:
 			success := false
-			result := reportEvent(ctx, []model.Event{{
+			result := reportEvent(ctx, []entity.Event{{
 				Data: event.Event.([]byte),
 				Ts:   time.Now(),
 				Key:  nil,
@@ -64,7 +86,7 @@ func (e *Extractor) StreamExtract(
 			if result.Error == nil {
 				success = true
 			}
-			extResult := model.ResultChanEvent{
+			extResult := admin.ResultChanEvent{
 				Id:      result.ResourceId,
 				Success: success,
 				Error:   result.Error,
@@ -79,10 +101,10 @@ func (e *Extractor) StreamExtract(
 }
 
 // TODO: Change eventData to []byte
-func (e *Extractor) SendToSource(ctx context.Context, eventData any) (string, error) {
+func (e *extractor) SendToSource(ctx context.Context, eventData any) (string, error) {
 
-	resultChan := make(chan model.ResultChanEvent)
-	event := model.ChanEvent{
+	resultChan := make(chan admin.ResultChanEvent)
+	event := admin.ChanEvent{
 		Event:         eventData,
 		ResultChannel: resultChan,
 	}
@@ -100,17 +122,17 @@ func (e *Extractor) SendToSource(ctx context.Context, eventData any) (string, er
 	return e.adjustToExternalErrors(result)
 }
 
-func (e *Extractor) Extract(ctx context.Context, query model.ExtractorQuery, result any) (error, bool) {
+func (e *extractor) Extract(ctx context.Context, query entity.ExtractorQuery, result any) (error, bool) {
 	return errors.New("not applicable"), false
 }
 
-func (e *Extractor) ExtractFromSink(ctx context.Context, query model.ExtractorQuery, result *[]*model.Transformed) (error, bool) {
+func (e *extractor) ExtractFromSink(ctx context.Context, query entity.ExtractorQuery, result *[]*entity.Transformed) (error, bool) {
 	return errors.New("not applicable"), false
 }
 
 // To be 110% sure we're only responding with success, when event published correctly, in case
 // of very rare (or potentially impossible) cases of replying with default values.
-func (e *Extractor) adjustToExternalErrors(result model.ResultChanEvent) (string, error) {
+func (e *extractor) adjustToExternalErrors(result admin.ResultChanEvent) (string, error) {
 	if result.Success {
 		result.Error = nil
 	} else {
@@ -123,6 +145,6 @@ func (e *Extractor) adjustToExternalErrors(result model.ResultChanEvent) (string
 	return result.Id, result.Error
 }
 
-func (e *Extractor) lgprfx() string {
+func (e *extractor) lgprfx() string {
 	return "[channel.extractor:" + e.id + "] "
 }
