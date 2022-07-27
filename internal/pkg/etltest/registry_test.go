@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zpiroux/geist/internal/pkg/model"
+	"github.com/zpiroux/geist/entity"
 )
 
 const testDirPath = "../../../test/"
@@ -23,7 +23,7 @@ func TestRegistry(t *testing.T) {
 	spec, err := registry.Get(ctx, SpecKafkaSrcBigtableSinkPlayer)
 	require.NoError(t, err)
 
-	var geistSpec = spec.(*model.Spec)
+	var geistSpec = spec.(*entity.Spec)
 	assert.NotZero(t, len(geistSpec.Namespace))
 	assert.NotZero(t, len(geistSpec.StreamIdSuffix))
 
@@ -40,7 +40,7 @@ func TestAllTestSpecs(t *testing.T) {
 	specs := GetAllSpecsRaw(testDirPath)
 	assert.NotEmpty(t, specs)
 	for _, specData := range specs {
-		spec, err := model.NewSpec(specData)
+		spec, err := entity.NewSpec(specData)
 		assert.NoError(t, err)
 		require.NotNil(t, spec)
 	}

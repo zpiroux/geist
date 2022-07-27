@@ -3,7 +3,7 @@ package igeist
 import (
 	"context"
 
-	"github.com/zpiroux/geist/internal/pkg/model"
+	"github.com/zpiroux/geist/entity"
 )
 
 // Transformer interface required for transformer implementations
@@ -17,5 +17,5 @@ type Transformer interface {
 	Transform(
 		ctx context.Context,
 		event []byte,
-		retryable *bool) ([]*model.Transformed, error)
+		retryable *bool) ([]*entity.Transformed, error)
 }

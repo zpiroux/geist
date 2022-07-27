@@ -4,26 +4,26 @@ import (
 	"context"
 	"errors"
 
+	"github.com/zpiroux/geist/entity"
 	"github.com/zpiroux/geist/internal/pkg/igeist"
-	"github.com/zpiroux/geist/internal/pkg/model"
 )
 
 type Stream struct {
 	spec          igeist.Spec
-	extractor     igeist.Extractor
+	extractor     entity.Extractor
 	transformer   igeist.Transformer
-	loader        igeist.Loader
-	sinkExtractor igeist.Extractor
+	loader        entity.Loader
+	sinkExtractor entity.Extractor
 	instance      string
 }
 
 func NewStream(
 	spec igeist.Spec,
 	instance string,
-	extractor igeist.Extractor,
+	extractor entity.Extractor,
 	transformer igeist.Transformer,
-	loader igeist.Loader,
-	sinkExtractor igeist.Extractor) *Stream {
+	loader entity.Loader,
+	sinkExtractor entity.Extractor) *Stream {
 
 	return &Stream{
 		spec:          spec,
@@ -43,7 +43,7 @@ func (s *Stream) Instance() string {
 	return s.instance
 }
 
-func (s *Stream) Extractor() igeist.Extractor {
+func (s *Stream) Extractor() entity.Extractor {
 	return s.extractor
 }
 
@@ -51,7 +51,7 @@ func (s *Stream) Transformer() igeist.Transformer {
 	return s.transformer
 }
 
-func (s *Stream) Loader() igeist.Loader {
+func (s *Stream) Loader() entity.Loader {
 	return s.loader
 }
 
@@ -61,7 +61,7 @@ func (s *Stream) Publish(ctx context.Context, event []byte) (string, error) {
 }
 
 // ExtractFromSink fetches data stored in the Stream's sink. It uses a sink extractor for that purpose.
-func (s *Stream) ExtractFromSink(ctx context.Context, query model.ExtractorQuery, result *[]*model.Transformed) (error, bool) {
+func (s *Stream) ExtractFromSink(ctx context.Context, query entity.ExtractorQuery, result *[]*entity.Transformed) (error, bool) {
 	if s.sinkExtractor == nil {
 		return errors.New("no sink extractor available for this sink"), false
 	}

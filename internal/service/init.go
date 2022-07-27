@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/zpiroux/geist/entity"
 	"github.com/zpiroux/geist/internal/pkg/assembly"
 	"github.com/zpiroux/geist/internal/pkg/engine"
-	"github.com/zpiroux/geist/internal/pkg/model"
+	"github.com/zpiroux/geist/internal/pkg/admin"
 	"github.com/zpiroux/geist/internal/pkg/registry"
 )
 
@@ -15,20 +16,20 @@ func (s *Service) initConfig(config Config) error {
 	var err error
 	s.config = config
 
-	adminEventSpec := model.AdminEventSpecInMem
+	adminEventSpec := admin.AdminEventSpecInMem
 
 	switch config.Registry.StorageMode {
-	case model.RegStorageNative:
-		s.config.Registry.RegSpec = model.SpecRegistrationSpec
-		adminEventSpec = model.AdminEventSpec
-	case model.RegStorageInMemory:
-		s.config.Registry.RegSpec = model.SpecRegistrationSpecInMem
-	case model.RegStorageCustom:
+	case admin.RegStorageNative:
+		s.config.Registry.RegSpec = admin.SpecRegistrationSpec
+		adminEventSpec = admin.AdminEventSpec
+	case admin.RegStorageInMemory:
+		s.config.Registry.RegSpec = admin.SpecRegistrationSpecInMem
+	case admin.RegStorageCustom:
 		s.config.Registry.RegSpec = config.Registry.RegSpec
-		adminEventSpec = model.AdminEventSpec
+		adminEventSpec = admin.AdminEventSpec
 	default:
-		s.config.Registry.StorageMode = model.RegStorageInMemory
-		s.config.Registry.RegSpec = model.SpecRegistrationSpecInMem
+		s.config.Registry.StorageMode = admin.RegStorageInMemory
+		s.config.Registry.RegSpec = admin.SpecRegistrationSpecInMem
 	}
 
 	// If admin spec provided, it overrides above defaults
@@ -36,34 +37,13 @@ func (s *Service) initConfig(config Config) error {
 		adminEventSpec = config.AdminStreamSpec
 	}
 
-	s.config.Engine.RegSpec, err = model.NewSpec(s.config.Registry.RegSpec)
+	s.config.Engine.RegSpec, err = entity.NewSpec(s.config.Registry.RegSpec)
 	if err != nil {
 		return fmt.Errorf("could not create Stream Spec for Registry, error: %s", err)
 	}
-	s.config.Engine.AdminSpec, err = model.NewSpec(adminEventSpec)
+	s.config.Engine.AdminSpec, err = entity.NewSpec(adminEventSpec)
 	if err != nil {
 		err = fmt.Errorf("could not create Stream Spec for Admin events, error: %s", err)
-	}
-	return err
-}
-
-func (s *Service) initGcpServices(ctx context.Context) (err error) {
-
-	if s.config.ProjectId == "" {
-		return nil
-	}
-
-	if err = s.config.Entity.BigTable.InitClients(ctx, s.config.ProjectId); err != nil {
-		return err
-	}
-	if err = s.config.Entity.BigQuery.InitClient(ctx, s.config.ProjectId); err != nil {
-		return err
-	}
-	if err = s.config.Entity.Firestore.InitClient(ctx, s.config.ProjectId); err != nil {
-		return err
-	}
-	if err = s.config.Entity.Pubsub.InitClient(ctx, s.config.ProjectId); err != nil {
-		return err
 	}
 	return err
 }

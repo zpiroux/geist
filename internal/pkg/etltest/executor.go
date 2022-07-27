@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/zpiroux/geist/entity"
 	"github.com/zpiroux/geist/internal/pkg/igeist"
-	"github.com/zpiroux/geist/internal/pkg/model"
 )
 
 type MockExecutor struct {
@@ -36,18 +36,18 @@ func (e *MockExecutor) Run(ctx context.Context, wg *sync.WaitGroup) {
 
 }
 
-func (e *MockExecutor) ProcessEvent(ctx context.Context, events []model.Event) model.EventProcessingResult {
+func (e *MockExecutor) ProcessEvent(ctx context.Context, events []entity.Event) entity.EventProcessingResult {
 
 	var (
-		r           model.EventProcessingResult
-		transformed []*model.Transformed
+		r           entity.EventProcessingResult
+		transformed []*entity.Transformed
 	)
 
 	r.Retryable = true
 
 	for _, event := range events {
 
-		var transEvent []*model.Transformed
+		var transEvent []*entity.Transformed
 		transEvent, r.Error = e.stream.Transformer().Transform(ctx, event.Data, &r.Retryable)
 		if r.Error != nil {
 			return r

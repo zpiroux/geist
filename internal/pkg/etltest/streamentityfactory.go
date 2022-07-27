@@ -5,18 +5,25 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/zpiroux/geist/entity"
+	"github.com/zpiroux/geist/entity/transform"
 	"github.com/zpiroux/geist/internal/pkg/entity/channel"
-	"github.com/zpiroux/geist/internal/pkg/entity/transform"
 	"github.com/zpiroux/geist/internal/pkg/entity/void"
 	"github.com/zpiroux/geist/internal/pkg/igeist"
-	"github.com/zpiroux/geist/internal/pkg/model"
 )
 
-// TODO: Improve this Mock entity factory to create more granular extractors, etc, using
-// the real Kafka/Pubsub, etc implementations, but mocked-out
+// The following constants are only used here locally for test spec purposes, 
+// and there are no dependencies to the real plugin entities, like kafka, etc.
+const (
+	EntityKafka     = "kafka"
+	EntityPubsub    = "pubsub"
+	EntityFirestore = "firestore"
+	EntityBigTable  = "bigtable"
+	EntityBigQuery  = "bigquery"
+)
 
 type StreamEntityFactory struct {
-	adminLoader igeist.Loader
+	adminLoader entity.Loader
 }
 
 func NewStreamEntityFactory() *StreamEntityFactory {
@@ -24,39 +31,40 @@ func NewStreamEntityFactory() *StreamEntityFactory {
 	return &StreamEntityFactory{}
 }
 
-func (s *StreamEntityFactory) SetAdminLoader(loader igeist.Loader) {
+func (s *StreamEntityFactory) SetAdminLoader(loader entity.Loader) {
 	s.adminLoader = loader
 }
 
-func (s *StreamEntityFactory) CreateExtractor(ctx context.Context, etlSpec igeist.Spec, instanceId string) (igeist.Extractor, error) {
+func (s *StreamEntityFactory) CreateExtractor(ctx context.Context, etlSpec igeist.Spec, instanceId string) (entity.Extractor, error) {
 
-	spec := etlSpec.(*model.Spec)
+	spec := etlSpec.(*entity.Spec)
 
 	switch spec.Source.Type {
 
-	case model.EntityKafka:
+	case EntityKafka:
 		if spec.Source.Config.Topics[0].Env == "" {
 			return nil, errors.New("invalid topic config, no environment defined")
 		}
 		return NewMockExtractor(spec.Source.Config), nil
 
-	case model.EntityPubsub:
+	case EntityPubsub:
 		return NewMockExtractor(spec.Source.Config), nil
 
-	case model.EntityGeistApi:
-		return channel.NewExtractor(spec.Id(), "instanceId")
+	case entity.EntityGeistApi:
+		// In real StreamEntityFactory the channel extractory factory is only created once
+		return channel.NewExtractorFactory().NewExtractor(ctx, spec, "instanceId")
 
 	default:
 		return nil, fmt.Errorf("source type '%s' not implemented", spec.Source.Type)
 	}
 }
 
-func (s *StreamEntityFactory) CreateSinkExtractor(ctx context.Context, etlSpec igeist.Spec, instanceId string) (igeist.Extractor, error) {
+func (s *StreamEntityFactory) CreateSinkExtractor(ctx context.Context, etlSpec igeist.Spec, instanceId string) (entity.Extractor, error) {
 
-	spec := etlSpec.(*model.Spec)
+	spec := etlSpec.(*entity.Spec)
 	switch spec.Sink.Type {
 
-	case model.EntityFirestore:
+	case EntityFirestore:
 		return NewMockExtractor(spec.Source.Config), nil
 
 	case "void": // Used to support top-level api server testing
@@ -72,29 +80,29 @@ func (s *StreamEntityFactory) CreateSinkExtractor(ctx context.Context, etlSpec i
 func (s *StreamEntityFactory) CreateTransformer(ctx context.Context, etlSpec igeist.Spec) (igeist.Transformer, error) {
 
 	// Currently only supporting native GEIST Transformations
-	spec := etlSpec.(*model.Spec)
+	spec := etlSpec.(*entity.Spec)
 	switch spec.Transform.ImplId {
 	default:
 		return transform.NewTransformer(spec), nil
 	}
 }
 
-func (s *StreamEntityFactory) CreateLoader(ctx context.Context, etlSpec igeist.Spec, instanceId string) (igeist.Loader, error) {
+func (s *StreamEntityFactory) CreateLoader(ctx context.Context, etlSpec igeist.Spec, instanceId string) (entity.Loader, error) {
 
-	spec := etlSpec.(*model.Spec)
+	spec := etlSpec.(*entity.Spec)
 	switch spec.Sink.Type {
 
 	case
-		model.EntityBigTable,
-		model.EntityFirestore,
-		model.EntityKafka,
-		model.EntityBigQuery:
+		EntityBigTable,
+		EntityFirestore,
+		EntityKafka,
+		EntityBigQuery:
 		return NewMockLoader(), nil
 
-	case model.EntityVoid:
-		return void.NewLoader(spec)
+	case entity.EntityVoid:
+		return void.NewLoaderFactory().NewLoader(ctx, spec, instanceId)
 
-	case model.EntityAdmin:
+	case entity.EntityAdmin:
 		return s.adminLoader, nil
 
 	default:

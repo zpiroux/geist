@@ -7,7 +7,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/zpiroux/geist/internal/pkg/model"
+	"github.com/zpiroux/geist/entity"
+	"github.com/zpiroux/geist/internal/pkg/admin"
 )
 
 const (
@@ -17,8 +18,8 @@ const (
 )
 
 var (
-	SpecRegSpec               = model.SpecRegistrationSpec
-	SpecRegChangeNotification = model.AdminEventSpec
+	SpecRegSpec               = admin.SpecRegistrationSpec
+	SpecRegChangeNotification = admin.AdminEventSpec
 )
 
 var printTestOutput bool
@@ -63,19 +64,19 @@ func TestExtractor_StreamExtract(t *testing.T) {
 	assert.NotEmpty(t, id)
 }
 
-func reportEvent(ctx context.Context, events []model.Event) model.EventProcessingResult {
+func reportEvent(ctx context.Context, events []entity.Event) entity.EventProcessingResult {
 
 	tPrintf("In reportEvent in Mock Executor, events: %+v\n", events)
 
-	return model.EventProcessingResult{ResourceId: "no-resource-id"}
+	return entity.EventProcessingResult{ResourceId: "no-resource-id"}
 }
 
-func newTestExtractor(t *testing.T, specBytes []byte) *Extractor {
+func newTestExtractor(t *testing.T, specBytes []byte) *extractor {
 
-	spec, err := model.NewSpec(specBytes)
+	spec, err := entity.NewSpec(specBytes)
 	assert.NoError(t, err)
 
-	extractor, err := NewExtractor(spec.Id(), "instanceId")
+	extractor, err := newExtractor(spec.Id(), "instanceId")
 	assert.NoError(t, err)
 	assert.NotNil(t, extractor)
 
@@ -83,26 +84,26 @@ func newTestExtractor(t *testing.T, specBytes []byte) *Extractor {
 }
 
 
-func newTestExtractorFromFile(t *testing.T, specId string) *Extractor {
+func newTestExtractorFromFile(t *testing.T, specId string) *extractor {
 
 	spec, err := getTestSpec(specId)
 	assert.NoError(t, err)
 	assert.NotNil(t, spec)
 
-	extractor, err := NewExtractor(spec.Id(), "instanceId")
+	extractor, err := newExtractor(spec.Id(), "instanceId")
 	assert.NoError(t, err)
 	assert.NotNil(t, extractor)
 
 	return extractor
 }
 
-func getTestSpec(specFile string) (*model.Spec, error) {
+func getTestSpec(specFile string) (*entity.Spec, error) {
 	tPrintf("opening file %s\n", specFile)
 	fileBytes, err := ioutil.ReadFile(testSpecDir + specFile)
 	if err != nil {
 		return nil, err
 	}
-	spec, err := model.NewSpec(fileBytes)
+	spec, err := entity.NewSpec(fileBytes)
 	if err != nil {
 		return nil, err
 	}

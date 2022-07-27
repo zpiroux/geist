@@ -6,8 +6,9 @@ import (
 	"io/ioutil"
 	"sync"
 
+	"github.com/zpiroux/geist/entity"
+	"github.com/zpiroux/geist/internal/pkg/admin"
 	"github.com/zpiroux/geist/internal/pkg/igeist"
-	"github.com/zpiroux/geist/internal/pkg/model"
 )
 
 const (
@@ -31,13 +32,13 @@ var tstreamSpecs = map[string]string{
 }
 
 // Convenience test function to get Spec for handling GEIST specs without loading Registry
-func SpecSpec() *model.Spec {
-	spec, _ := model.NewSpec(model.SpecRegistrationSpec)
+func SpecSpec() *entity.Spec {
+	spec, _ := entity.NewSpec(admin.SpecRegistrationSpec)
 	return spec
 }
 
-func SpecSpecInMem() *model.Spec {
-	spec, _ := model.NewSpec(model.SpecRegistrationSpecInMem)
+func SpecSpecInMem() *entity.Spec {
+	spec, _ := entity.NewSpec(admin.SpecRegistrationSpecInMem)
 	return spec
 }
 
@@ -78,10 +79,10 @@ func NewStreamRegistry(testDirPath string) *StreamRegistry {
 }
 
 func (r *StreamRegistry) Put(ctx context.Context, id string, spec igeist.Spec) error {
-	if err := spec.(*model.Spec).Validate(); err != nil {
+	if err := spec.(*entity.Spec).Validate(); err != nil {
 		return err
 	}
-	r.specs[id] = spec.(*model.Spec)
+	r.specs[id] = spec.(*entity.Spec)
 	return nil
 }
 
@@ -117,7 +118,7 @@ func (r *StreamRegistry) ExistsSameVersion(specBytes []byte) (bool, error) {
 }
 
 func (r *StreamRegistry) Validate(specBytes []byte) (igeist.Spec, error) {
-	spec, err := model.NewSpec(specBytes)
+	spec, err := entity.NewSpec(specBytes)
 	if err == nil && spec != nil {
 		err = spec.Validate()
 	} else {
@@ -133,7 +134,7 @@ func (r *StreamRegistry) registerSpec(ctx context.Context, id string, path strin
 	if err != nil {
 		return err
 	}
-	spec, err := model.NewSpec(fileBytes)
+	spec, err := entity.NewSpec(fileBytes)
 	if err != nil {
 		return err
 	}
@@ -158,8 +159,8 @@ func (r *StreamRegistry) Run(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 }
 
-func (r *StreamRegistry) ProcessEvent(ctx context.Context, events []model.Event) model.EventProcessingResult {
-	return model.EventProcessingResult{}
+func (r *StreamRegistry) ProcessEvent(ctx context.Context, events []entity.Event) entity.EventProcessingResult {
+	return entity.EventProcessingResult{}
 }
 
 func (r *StreamRegistry) Stream() igeist.Stream {
