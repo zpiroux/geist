@@ -206,7 +206,7 @@ The ID of the new stream returned from `geist.RegisterStream()` in a successful 
 
 `<"namespace">-<"streamIdSuffix">`
 
-For full spec structure with all optional and additional fields, see [specmodel.go](internal/pkg/admin/specmodel.go).
+For full spec structure with all optional and additional fields, see [spec.go](entity/spec.go).
 
 The Stream Spec struct is exposed as `geist.StreamSpec` into which a json bytes spec can be unmarshalled if needed.
 
@@ -326,7 +326,7 @@ Since each stream executor runs as a light-weight Goroutine, thousands of stream
 
 But it's usually a good approach to start with a low number of streams per pod, and increase based on test results.
 
-Further parameters can be found in the stream spec definition ([specmodel.go](internal/pkg/admin/specmodel.go)), with general ones in the `Ops` struct and Source/Sink specific ones in respective `SourceConfig` and `SinkConfig` struct.
+Further parameters can be found in the stream spec definition ([spec.go](entity/spec.go)), with general ones in the `Ops` struct and Source/Sink specific ones in respective `SourceConfig` and `SinkConfig` struct.
 
 ## Limitations and improvement areas
 Although Geist has been run in production with heavy load, no data-loss, and zero downtime for ~two years, it makes no guarantees that all combinations of stream spec options will work fully in all cases.
@@ -356,7 +356,7 @@ Internal logging could be made more configurable externally.
 Log level is based on environment variable LOG_LEVEL. If not set, INFO will be used.
 
 ### Spec schema
-For historical reasons some fields in the [Spec schema](internal/pkg/admin/specmodel.go) are only used for specific source/sink types, even though the customConfig enables any arbitrary config to be used.
+For historical reasons some fields in the [Spec schema](entity/spec.go) are only used for specific source/sink types, even though the customConfig enables any arbitrary config to be used.
 
 ## Contact
 info @ zpiroux . com
