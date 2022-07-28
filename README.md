@@ -86,8 +86,8 @@ Register connectors prior to starting up Geist with (error handling omitted):
 ```go
 import (
 	"github.com/zpiroux/geist"
-	gbigtable "github.com/zpiroux/geist-connector-gcp/bigtable"
-	gkafka "github.com/zpiroux/geist-connector-kafka"
+	"github.com/zpiroux/geist-connector-gcp/gbigtable"
+	"github.com/zpiroux/geist-connector-kafka/gkafka"
 )
 
 ...
