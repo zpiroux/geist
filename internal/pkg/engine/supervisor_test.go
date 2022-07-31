@@ -44,7 +44,7 @@ func TestSupervisor(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestAdminEventHandler_StreamLoad(t *testing.T) {
+func TestAdminEventHandlerStreamLoad(t *testing.T) {
 
 	tPrintf("\nTestAdminEventHandler_StreamLoad\n")
 	ctx, cancel := context.WithCancel(context.Background())

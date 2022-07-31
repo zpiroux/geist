@@ -269,7 +269,7 @@ func (p *PanickingMockLoader) Shutdown() {
 }
 
 // Test sink handling logic
-func TestExecutor_ProcessEvent(t *testing.T) {
+func TestExecutorProcessEvent(t *testing.T) {
 
 	spec, err := entity.NewSpec(minimalStreamSpec)
 	assert.NoError(t, err)
@@ -321,7 +321,7 @@ func TestExecutor_ProcessEvent(t *testing.T) {
 }
 
 // Test processing of multiple events in a single call
-func TestExecutor_ProcessMultiEvent(t *testing.T) {
+func TestExecutorProcessMultiEvent(t *testing.T) {
 
 	spec, err := entity.NewSpec(minimalStreamSpec)
 	assert.NoError(t, err)

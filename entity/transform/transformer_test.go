@@ -63,7 +63,7 @@ func TestTransformer(t *testing.T) {
 
 }
 
-func TestTransformer_Regexp(t *testing.T) {
+func TestTransformerRegexp(t *testing.T) {
 	var (
 		fileBytes []byte
 		output    []*entity.Transformed
@@ -111,7 +111,7 @@ func TestTransformer_Regexp(t *testing.T) {
 	assert.Equal(t, expected, string(out.([]byte)))
 }
 
-func TestTransformer_TimeConv(t *testing.T) {
+func TestTransformerTimeConv(t *testing.T) {
 	var tcSpec entity.TimeConv
 	tcSpec.InputFormat = "2006-01-02 03:04:05.999 -0700"
 	tcSpec.Field = "ts"
@@ -132,7 +132,7 @@ func TestTransformer_TimeConv(t *testing.T) {
 	assert.Equal(t, "2020-07-01T13:21:37+02:00", date)
 }
 
-func TestTransformer_ExtractFields(t *testing.T) {
+func TestTransformerExtractFields(t *testing.T) {
 
 	var err error
 
@@ -351,7 +351,7 @@ var (
 	nonApplicableErsEvent = "{\"name\":\"XCH_RATES_UPDATED\",\"version\":\"1.0\",\"ts\":\"2059-12-07T23:21:43.735Z\",\"id\":\"c84fc871-c8cb-4c8b-8a09-f4ba969ac843\",\"data\":[{\"base\":\"CHF\",\"rates\":{\"HRK\":0.14726,\"CHF\":1}}]}"
 )
 
-func TestTransformer_ArrayConditionals(t *testing.T) {
+func TestTransformerArrayConditionals(t *testing.T) {
 
 	var (
 		fileBytes []byte
@@ -394,7 +394,7 @@ func tPrintf(format string, a ...any) {
 	}
 }
 
-func TestTransformer_TransformedItemsFromJsonArray(t *testing.T) {
+func TestTransformerTransformedItemsFromJsonArray(t *testing.T) {
 
 	printTestOutput = false
 	json := `
@@ -466,7 +466,7 @@ func TestTransformer_TransformedItemsFromJsonArray(t *testing.T) {
 	tPrintf(tPrintfTransfOutputFmt, output)
 }
 
-func TestTransformer_ExcludeEvents(t *testing.T) {
+func TestTransformerExcludeEvents(t *testing.T) {
 
 	specJson := []byte(`
 	{
