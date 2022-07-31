@@ -62,45 +62,44 @@ func RunStream(ctx context.Context) {
 }
 
 var specEmitterStream = []byte(`
-    {
-        "namespace": "my",
-        "streamIdSuffix": "event-emitter-stream",
-        "description": "Test stream continuously processing events from a custom extractor.",
-        "version": 1,
-        "source": {
-            "type": "eventEmitter",
-			"config": {
-				"customConfig": {
-					"emitIntervalSeconds": "2"
-				}
-			}
-		},
-        "transform": {
-            "extractFields": [
-                {
-                    "fields": [
-                        {
-                            "id": "rawEvent"
-                        },
-                        {
-                            "id": "eventTime",
-							"jsonPath": "ts",
-							"type": "unixTimestamp"
-                        }
-					]
-                }
-            ]
-        },
-        "sink": {
-            "type": "void",
-            "config": {
-                "properties": [
+{
+    "namespace": "my",
+    "streamIdSuffix": "event-emitter-stream",
+    "description": "Test stream continuously processing events from a custom extractor.",
+    "version": 1,
+    "source": {
+        "type": "eventEmitter",
+        "config": {
+            "customConfig": {
+                "emitIntervalSeconds": "2"
+            }
+        }
+    },
+    "transform": {
+        "extractFields": [
+            {
+                "fields": [
                     {
-                        "key": "logEventData",
-                        "value": "true"
+                        "id": "rawEvent"
+                    },
+                    {
+                        "id": "eventTime",
+                        "jsonPath": "ts",
+                        "type": "unixTimestamp"
                     }
                 ]
             }
+        ]
+    },
+    "sink": {
+        "type": "void",
+        "config": {
+            "properties": [
+                {
+                    "key": "logEventData",
+                    "value": "true"
+                }
+            ]
         }
     }
-`)
+}`)
