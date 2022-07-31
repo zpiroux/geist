@@ -2,6 +2,7 @@
 <div>
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/zpiroux/geist)](https://goreportcard.com/report/github.com/zpiroux/geist)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=zpiroux_geist&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=zpiroux_geist)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=zpiroux_geist&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=zpiroux_geist)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=zpiroux_geist&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=zpiroux_geist)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=zpiroux_geist&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=zpiroux_geist)
