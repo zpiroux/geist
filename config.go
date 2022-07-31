@@ -26,7 +26,7 @@ type Config struct {
 	loaders    entity.LoaderFactories
 }
 
-// HookConfig enables a Geist client to inject custom logic to the stream processing, such as 
+// HookConfig enables a Geist client to inject custom logic to the stream processing, such as
 // enrichment, deduplication, and filtering (if existing spec transform options not suitable).
 type HookConfig struct {
 	PreTransformHookFunc entity.PreTransformHookFunc
@@ -43,8 +43,8 @@ func NewConfig() *Config {
 	}
 }
 
-// RegisterLoaderType is used to prepare config for Geist to make this particular 
-// Sink/Loader type availble for stream specs to use. This can only be done after
+// RegisterLoaderType is used to prepare config for Geist to make this particular
+// Sink/Loader type available for stream specs to use. This can only be done after
 // a geist.NewConfig() and prior to creating Geist with geist.New().
 func (c *Config) RegisterLoaderType(loaderFactory entity.LoaderFactory) error {
 	if _, ok := entity.ReservedEntityNames[loaderFactory.SinkId()]; ok {
@@ -73,9 +73,9 @@ func (c *Config) registerExtractorType(extractorFactory entity.ExtractorFactory)
 	c.extractors[extractorFactory.SourceId()] = extractorFactory
 }
 
-// SpecRegistryConfig is only required to be filled in if persistance of specs is required.
+// SpecRegistryConfig is only required to be filled in if persistence of specs is required.
 // Normally only StorageMode field is needed for setting up intended behaviour, switching from
-// in-mem storage to native persistance. Future updates might add more built-in "native" storage modes.
+// in-mem storage to native persistence. Future updates might add more built-in "native" storage modes.
 type SpecRegistryConfig struct {
 
 	// StorageMode specifies how Geist should store stream specs to be run.

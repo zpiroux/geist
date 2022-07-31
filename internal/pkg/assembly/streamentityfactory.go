@@ -71,7 +71,7 @@ func (s *StreamEntityFactory) CreateLoader(ctx context.Context, etlSpec igeist.S
 		return factory.NewLoader(ctx, spec, instanceId)
 	}
 
-	// TODO: This is a left-over from before loader factories. 
+	// TODO: This is a left-over from before loader factories.
 	// Add this sink type to default native ones in s.config.Loaders.
 	if spec.Sink.Type == entity.EntityAdmin {
 		return s.adminLoader, nil

@@ -23,7 +23,7 @@ var (
 	tReg            *testing.T
 )
 
-func TestStreamRegistry_Fetch(t *testing.T) {
+func TestStreamRegistryFetch(t *testing.T) {
 
 	log = log.WithLevel(logger.DEBUG)
 

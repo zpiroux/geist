@@ -65,13 +65,13 @@ func (g *Geist) RegisterStream(ctx context.Context, specData []byte) (id string,
 	registry := g.service.Registry()
 	_, err = registry.Validate(specData)
 	if err != nil {
-		return id, fmt.Errorf("%w, details: %v", ErrInvalidStreamSpec, err)
+		return id, errWithDetails(ErrInvalidStreamSpec, err)
 	}
 
 	exists, err := registry.ExistsSameVersion(specData)
 
 	if err != nil {
-		return id, fmt.Errorf("%w, details: %v", ErrInternalDataProcessing, err)
+		return id, errWithDetails(ErrInternalDataProcessing, err)
 	}
 	if exists {
 		return id, ErrSpecAlreadyExists
@@ -80,8 +80,7 @@ func (g *Geist) RegisterStream(ctx context.Context, specData []byte) (id string,
 	id, err = registry.Stream().Publish(ctx, specData)
 
 	if err != nil {
-		return id, fmt.Errorf("%w, details: %v", ErrInternalDataProcessing, err)
-		
+		return id, errWithDetails(ErrInternalDataProcessing, err)
 	}
 	return
 }
@@ -104,8 +103,7 @@ func (g *Geist) Publish(ctx context.Context, streamId string, event []byte) (id 
 
 	stream, err := g.service.Stream(streamId)
 	if err != nil {
-		return id, fmt.Errorf("%w, details: %v", ErrInvalidStreamId, err)
-		
+		return id, errWithDetails(ErrInvalidStreamId, err)
 	}
 
 	// Spec Registration events should not use this method, but RegisterStream instead to
@@ -117,7 +115,7 @@ func (g *Geist) Publish(ctx context.Context, streamId string, event []byte) (id 
 	id, err = stream.Publish(ctx, event)
 
 	if err != nil {
-		return id, fmt.Errorf("%w, details: %v", ErrInternalDataProcessing, err)
+		return id, errWithDetails(ErrInternalDataProcessing, err)
 	}
 	return
 }
@@ -150,12 +148,11 @@ func (g *Geist) ValidateStreamSpec(specData []byte) (specId string, err error) {
 
 	spec, err := g.service.Registry().Validate(specData)
 	if err != nil {
-		return specId, fmt.Errorf("%w, details: %v", ErrInvalidStreamSpec, err)
+		return specId, errWithDetails(ErrInvalidStreamSpec, err)
 	}
 
 	if spec.Id() == g.service.Registry().StreamId() {
-		// Updates to GEIST's internal spec registration stream are not allowed
-		return specId, fmt.Errorf("%w, details: %v", ErrProtectedStreamId, err)
+		return specId, errWithDetails(ErrProtectedStreamId, err)
 	}
 
 	return spec.Id(), err
@@ -188,6 +185,10 @@ func (g *Geist) Entities() map[string]map[string]bool {
 // EnrichEvent is a convenience function that could be used for event enrichment purposes
 // inside a hook function as specified in geist.Config.Hooks.
 // It's a wrapper on the sjson package. See doc at https://github.com/tidwall/sjson.
-func (g *Geist) EnrichEvent(event []byte, path string, value any) ([]byte, error) {
+func EnrichEvent(event []byte, path string, value any) ([]byte, error) {
 	return sjson.SetBytes(event, path, value)
+}
+
+func errWithDetails(err error, errDetails error) error {
+	return fmt.Errorf("%w, details: %v", err, errDetails)
 }

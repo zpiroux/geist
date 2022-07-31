@@ -142,6 +142,7 @@ func (r *StreamRegistry) registerSpec(ctx context.Context, id string, path strin
 }
 
 func (r *StreamRegistry) SetAdminStream(stream igeist.Stream) {
+	// Admin stream not part of these tests
 
 }
 
@@ -167,4 +168,6 @@ func (r *StreamRegistry) Stream() igeist.Stream {
 	return r.executor.Stream()
 }
 
-func (r *StreamRegistry) Shutdown() {}
+func (r *StreamRegistry) Shutdown() {
+	// Nothing to mock here
+}

@@ -40,7 +40,7 @@ func TestNewExtractor(t *testing.T) {
 	assert.NotNil(t, extractor)
 }
 
-func TestExtractor_StreamExtract(t *testing.T) {
+func TestExtractorStreamExtract(t *testing.T) {
 
 	var (
 		err       error
@@ -82,7 +82,6 @@ func newTestExtractor(t *testing.T, specBytes []byte) *extractor {
 
 	return extractor
 }
-
 
 func newTestExtractorFromFile(t *testing.T, specId string) *extractor {
 

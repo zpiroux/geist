@@ -9,8 +9,8 @@ import (
 
 	"github.com/teltech/logger"
 	"github.com/zpiroux/geist/entity"
-	"github.com/zpiroux/geist/internal/pkg/igeist"
 	"github.com/zpiroux/geist/internal/pkg/admin"
+	"github.com/zpiroux/geist/internal/pkg/igeist"
 )
 
 var log *logger.Log
@@ -116,7 +116,7 @@ func (s *Supervisor) Shutdown(err error) {
 	var reason string
 
 	if err == nil {
-		reason = "upgrade or similar (no error)"
+		reason = "upgrade, client request or similar (no error)"
 	} else {
 		reason = err.Error()
 	}
@@ -297,7 +297,9 @@ func (a *AdminEventHandler) StreamLoad(ctx context.Context, data []*entity.Trans
 	}
 }
 
-func (a *AdminEventHandler) Shutdown() {}
+func (a *AdminEventHandler) Shutdown() {
+	// Nothing to shut down
+}
 
 func (e *AdminEventHandler) lgprfx() string {
 	return "[supervisor:" + e.id + "] "

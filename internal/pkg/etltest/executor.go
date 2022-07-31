@@ -66,4 +66,6 @@ func (e *MockExecutor) Stream() igeist.Stream {
 	return e.stream
 }
 
-func (e *MockExecutor) Shutdown() {}
+func (e *MockExecutor) Shutdown() {
+	// Nothing to mock here
+}

@@ -1,4 +1,12 @@
 # Generic Event Ingestion and Stream Transloading (GEIST)
+<div>
+
+[![Go Report Card](https://goreportcard.com/badge/github.com/zpiroux/geist)](https://goreportcard.com/report/github.com/zpiroux/geist)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=zpiroux_geist&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=zpiroux_geist)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=zpiroux_geist&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=zpiroux_geist)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=zpiroux_geist&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=zpiroux_geist)
+
+</div>
 
 Geist provides cost-efficient high-performance capabilities to develop generic (or specific) services executing an arbitrary number of event streams between various sources and sinks, with a set of built-in single message transforms. It's an alternative to other more heavy-weight, constrained and/or costly products, although with a more slim feature scope.
 
@@ -35,7 +43,7 @@ func main() {
 		g.Shutdown(ctx)
 	}()
 
-	geist.Run(ctx)
+	g.Run(ctx)
 }
 
 var spec = []byte(`
@@ -131,7 +139,7 @@ The following example shows a hook func injecting a new field `"myNewField"` in 
 ```go
 c := geist.NewConfig()
 c.Hooks.PreTransformHookFunc = MyEnricher
-geist, err := geist.New(ctx, c)
+g, err := geist.New(ctx, c)
 ...
 func MyEnricher(ctx context.Context, event *[]byte) entity.HookAction {
     *event, err = geist.EnrichEvent(*event, "myNewField", "coolValue")

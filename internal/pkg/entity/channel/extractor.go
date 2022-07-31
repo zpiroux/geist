@@ -35,7 +35,7 @@ func (lf *ExtractorFactory) NewExtractor(ctx context.Context, spec *entity.Spec,
 }
 
 func (lf *ExtractorFactory) Close() error {
-	return nil 
+	return nil
 }
 
 type extractor struct {
