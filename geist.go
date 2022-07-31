@@ -103,7 +103,7 @@ func (g *Geist) Publish(ctx context.Context, streamId string, event []byte) (id 
 
 	stream, err := g.service.Stream(streamId)
 	if err != nil {
-		return id, fmt.Errorf("%w, details: %v", ErrInvalidStreamId, err)
+		return id, errWithDetails(ErrInvalidStreamId, err)
 	}
 
 	// Spec Registration events should not use this method, but RegisterStream instead to
@@ -152,7 +152,7 @@ func (g *Geist) ValidateStreamSpec(specData []byte) (specId string, err error) {
 	}
 
 	if spec.Id() == g.service.Registry().StreamId() {
-		return specId, fmt.Errorf("%w, details: %v", ErrProtectedStreamId, err)
+		return specId, errWithDetails(ErrProtectedStreamId, err)
 	}
 
 	return spec.Id(), err
