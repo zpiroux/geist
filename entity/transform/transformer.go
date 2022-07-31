@@ -139,26 +139,10 @@ func (t *Transformer) regexpTransform(event []byte, transformed *[]*entity.Trans
 		err       error
 	)
 
-	if len(t.spec.Transform.Regexp.Field) > 0 {
-		if len(*transformed) == 0 {
-			log.Warnf("wanted field: %s was not extracted", t.spec.Transform.Regexp.Field)
-			return nil
-		}
-		for _, td := range *transformed {
-			fe, ok := td.Data[t.spec.Transform.Regexp.Field]
-			if !ok {
-				continue
-			}
-			if event, err = getBytes(fe); err != nil {
-				log.Warnf("could not cast field %v into byte", fe)
-				return nil
-			}
-			transform = td
-			if !t.spec.Transform.Regexp.KeepField {
-				delete(td.Data, t.spec.Transform.Regexp.Field)
-			}
-			break
-		}
+	transform, event, err = t.preProcessRegExp(event, transformed)
+	if err != nil {
+		log.Warn(err.Error())
+		return nil
 	}
 
 	if t.spec.Ops.LogEventData {
@@ -174,6 +158,34 @@ func (t *Transformer) regexpTransform(event []byte, transformed *[]*entity.Trans
 		*transformed = append(*transformed, result)
 	}
 	return nil
+}
+
+func (t *Transformer) preProcessRegExp(event []byte, transformed *[]*entity.Transformed) (*entity.Transformed, []byte, error) {
+	var (
+		transform *entity.Transformed
+		err       error
+	)
+
+	if len(t.spec.Transform.Regexp.Field) > 0 {
+		if len(*transformed) == 0 {
+			return transform, event, fmt.Errorf("wanted field: %s was not extracted", t.spec.Transform.Regexp.Field)
+		}
+		for _, td := range *transformed {
+			fe, ok := td.Data[t.spec.Transform.Regexp.Field]
+			if !ok {
+				continue
+			}
+			if event, err = getBytes(fe); err != nil {
+				return transform, event, fmt.Errorf("could not cast field %v into byte", fe)
+			}
+			transform = td
+			if !t.spec.Transform.Regexp.KeepField {
+				delete(td.Data, t.spec.Transform.Regexp.Field)
+			}
+			break
+		}
+	}
+	return transform, event, err
 }
 
 func applyRegExp(regex *regexp.Regexp, regexpSpec *entity.Regexp, event []byte, input *entity.Transformed, groups []string) (res *entity.Transformed, err error) {

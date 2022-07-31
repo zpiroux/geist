@@ -87,14 +87,33 @@ func (l *loader) StreamLoad(ctx context.Context, data []*entity.Transformed) (st
 		}
 	}
 
-	if value, ok := l.props["simulateError"]; ok {
+	resourceId, err, retryable = l.handleSinkMode(data, resourceId)
+	if err != nil {
+		return resourceId, err, retryable
+	}
+
+	err, retryable = l.handleSimulateError()
+
+	if value, ok := l.props["logEventData"]; ok {
+		if value == "true" {
+			log.Infof("[voidsink] transformed.String() = %s", data[0].String())
+		}
+	}
+
+	return resourceId, err, retryable
+}
+
+// handleSimulateError is used for e2e test of handling of retryable and unretryable sink errors.
+// If used, the spec field maxErrors should also be set.
+func (l *loader) handleSimulateError() (err error, retryable bool) {
+	if errorType, ok := l.props["simulateError"]; ok {
 
 		if l.numberErrors >= l.maxErrors {
 			err = nil
 			retryable = false
 		} else {
 			l.numberErrors++
-			switch value {
+			switch errorType {
 			case "alwaysRetryable":
 				err = errors.New("void loader simulating retryable error")
 				retryable = true
@@ -104,9 +123,15 @@ func (l *loader) StreamLoad(ctx context.Context, data []*entity.Transformed) (st
 			}
 		}
 	}
+	return err, retryable
+}
 
-	if value, ok := l.props["mode"]; ok {
-		if value == inMemRegistryMode {
+// handleSinkMode is used for e2e test of external registration of stream specs, providing
+// properly returned resource/stream ID, without having a physical implementation of a spec store.
+func (l *loader) handleSinkMode(data []*entity.Transformed, resourceId string) (string, error, bool) {
+	if mode, ok := l.props["mode"]; ok {
+
+		if mode == inMemRegistryMode {
 			if data == nil {
 				return resourceId, errors.New("streamLoad called without data to load (data == nil)"), false
 			}
@@ -122,14 +147,7 @@ func (l *loader) StreamLoad(ctx context.Context, data []*entity.Transformed) (st
 			resourceId = spec.Id()
 		}
 	}
-
-	if value, ok := l.props["logEventData"]; ok {
-		if value == "true" {
-			log.Infof("[voidsink] transformed.String() = %s", data[0].String())
-		}
-	}
-
-	return resourceId, err, retryable
+	return resourceId, nil, false
 }
 
 func (l *loader) Shutdown() {

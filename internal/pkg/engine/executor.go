@@ -83,15 +83,7 @@ func (e *Executor) Run(ctx context.Context, wg *sync.WaitGroup) {
 	)
 
 	e.ctx, e.cancel = context.WithCancel(ctx)
-
-	defer func() {
-		// Protection against badly written extractor/source plugins
-		if r := recover(); r != nil {
-			e.log.Errorf(e.lgprfx()+"panic (%v) in StreamExtract() for spec %s, terminating stream", r, e.stream.Spec().JSON())
-		}
-		wg.Done()
-	}()
-
+	defer e.runExit(wg)
 	e.log.Info(e.lgprfx() + "Starting up")
 
 	// Infinite retries with exponential backoff interval, for max self-healing when having retryable errors.
@@ -123,6 +115,14 @@ func (e *Executor) Run(ctx context.Context, wg *sync.WaitGroup) {
 	e.log.Infof(e.lgprfx()+"finished. Events processed: %d", e.events)
 }
 
+func (e *Executor) runExit(wg *sync.WaitGroup) {
+	// Protection against badly written extractor/source plugins
+	if r := recover(); r != nil {
+		e.log.Errorf(e.lgprfx()+"panic (%v) in StreamExtract() for spec %s, terminating stream", r, e.stream.Spec().JSON())
+	}
+	wg.Done()
+}
+
 // ProcessEvent is called by Extractor when event extracted from source.
 // This design is chosen instead of a channel based one, to ensure efficient and reliable offset commit/pubsub ack
 // only when sink success is ensured. It also reduces transloading latency to a minimum.
@@ -137,12 +137,7 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 		transformed []*entity.Transformed
 	)
 
-	defer func() {
-		// Protection against badly written loader/sink plugins or external hook logic
-		if r := recover(); r != nil {
-			e.log.Errorf(e.lgprfx()+"panic (%v) in ProcessEvent() for spec %s", r, e.stream.Spec().JSON())
-		}
-	}()
+	defer e.processEventExit()
 
 	if e.shutdownInProgress {
 		e.log.Warnf("rejecting event processing due to shutdown in progress, rejected events: %v", events)
@@ -221,14 +216,7 @@ func (e *Executor) loadToSink(ctx context.Context, transformed []*entity.Transfo
 			break
 		}
 
-		if ctx.Err() == context.Canceled {
-			e.log.Infof(e.lgprfx()+"context canceled during StreamLoad, err: %v", result.Error)
-			result.Status = entity.ExecutorStatusShutdown
-			return result
-		}
-
-		if result.Error == entity.ErrEntityShutdownRequested {
-			e.log.Infof(e.lgprfx() + "loader requested shutdown during StreamLoad")
+		if e.shuttingDown(ctx, result) {
 			result.Status = entity.ExecutorStatusShutdown
 			return result
 		}
@@ -255,7 +243,26 @@ func (e *Executor) loadToSink(ctx context.Context, transformed []*entity.Transfo
 	}
 
 	return result
+}
 
+func (e *Executor) shuttingDown(ctx context.Context, result entity.EventProcessingResult) bool {
+	if ctx.Err() == context.Canceled {
+		e.log.Infof(e.lgprfx()+"context canceled during StreamLoad, err: %v", result.Error)
+		return true
+	}
+
+	if result.Error == entity.ErrEntityShutdownRequested {
+		e.log.Infof(e.lgprfx() + "loader requested shutdown during StreamLoad")
+		return true
+	}
+	return false
+}
+
+func (e *Executor) processEventExit() {
+	// Protection against badly written loader/sink plugins or external hook logic
+	if r := recover(); r != nil {
+		e.log.Errorf(e.lgprfx()+"panic (%v) in ProcessEvent() for spec %s", r, e.stream.Spec().JSON())
+	}
 }
 
 func (e *Executor) Shutdown() {
