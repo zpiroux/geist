@@ -132,4 +132,6 @@ func (l *loader) StreamLoad(ctx context.Context, data []*entity.Transformed) (st
 	return resourceId, err, retryable
 }
 
-func (l *loader) Shutdown() {}
+func (l *loader) Shutdown() {
+	// Nothing to shut down
+}

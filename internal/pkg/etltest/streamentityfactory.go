@@ -12,7 +12,7 @@ import (
 	"github.com/zpiroux/geist/internal/pkg/igeist"
 )
 
-// The following constants are only used here locally for test spec purposes, 
+// The following constants are only used here locally for test spec purposes,
 // and there are no dependencies to the real plugin entities, like kafka, etc.
 const (
 	EntityKafka     = "kafka"

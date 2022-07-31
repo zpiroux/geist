@@ -22,7 +22,7 @@ const (
 
 var (
 	ErrHookUnretryableError = errors.New("PreTransfromHookFunc reported unretryable error")
-	ErrHookInvalidAction = errors.New("PreTransfromHookFunc returned invalid action value")
+	ErrHookInvalidAction    = errors.New("PreTransfromHookFunc returned invalid action value")
 )
 
 // Stream Executors operates an ETL stream, from Source to Transform to Sink, as specified by
@@ -204,8 +204,13 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 		return result
 	}
 
+	return e.loadToSink(ctx, transformed)
+}
+
+func (e *Executor) loadToSink(ctx context.Context, transformed []*entity.Transformed) (result entity.EventProcessingResult) {
 	loadAttempts := 0
 	backoffDuration := defaultInitialStreamLoadRetryBackoffDuration
+	result.Status = entity.ExecutorStatusError
 
 	for ; loadAttempts <= e.maxRetryAttempts(); loadAttempts++ {
 
@@ -244,12 +249,13 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 	}
 
 	if result.Error != nil && result.Retryable {
-		e.log.Errorf(e.lgprfx()+"giving up retrying after %d attempts, raw events: %v, transformed event: %+v", loadAttempts, events, transformed)
+		e.log.Errorf(e.lgprfx()+"giving up retrying load to sink for spec ID %s, after %d attempts, transformed event(s): %+v", e.StreamId(), loadAttempts, transformed)
 		result.Status = entity.ExecutorStatusRetriesExhausted
 		// From here, it's up to each extractor to handle DLQ logic
 	}
 
 	return result
+
 }
 
 func (e *Executor) Shutdown() {

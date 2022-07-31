@@ -17,4 +17,6 @@ func (s *MockLoader) StreamLoad(ctx context.Context, data []*entity.Transformed)
 	return "", nil, false
 }
 
-func (s *MockLoader) Shutdown() {}
+func (s *MockLoader) Shutdown() {
+	// Nothing to mock here
+}

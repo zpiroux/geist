@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"github.com/zpiroux/geist/entity"
+	"github.com/zpiroux/geist/internal/pkg/admin"
 	"github.com/zpiroux/geist/internal/pkg/assembly"
 	"github.com/zpiroux/geist/internal/pkg/engine"
-	"github.com/zpiroux/geist/internal/pkg/admin"
 	"github.com/zpiroux/geist/internal/pkg/registry"
 )
 

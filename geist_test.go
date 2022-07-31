@@ -172,15 +172,14 @@ func geistTest(ctx context.Context, geist *Geist, t *testing.T) {
 
 func TestEnrichment(t *testing.T) {
 
-	g := &Geist{}
 	var (
 		originalEvent         = []byte(`{"field1":"field1Value","field2":11}`)
 		expectedEnrichedEvent = []byte(`{"field1":"field1Value","field2":77,"injectedField":"hi there"}`)
 	)
 
-	enrichedEvent, err := g.EnrichEvent(originalEvent, "field2", 77)
+	enrichedEvent, err := EnrichEvent(originalEvent, "field2", 77)
 	assert.NoError(t, err)
-	enrichedEvent, err = g.EnrichEvent(enrichedEvent, "injectedField", "hi there")
+	enrichedEvent, err = EnrichEvent(enrichedEvent, "injectedField", "hi there")
 	assert.NoError(t, err)
 	assert.Equal(t, string(expectedEnrichedEvent), string(enrichedEvent))
 }
@@ -346,4 +345,6 @@ func (sl *sillyLoader) StreamLoad(ctx context.Context, data []*entity.Transforme
 	return "resource id based on " + sl.lastEvent, nil, false
 }
 
-func (sl *sillyLoader) Shutdown() {}
+func (sl *sillyLoader) Shutdown() {
+	// nothing to mock here
+}

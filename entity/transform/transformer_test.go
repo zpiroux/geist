@@ -13,13 +13,14 @@ import (
 )
 
 const (
-	testSpecDir  = "../../test/specs/"
-	testEventDir = "../../test/events/"
+	testSpecDir            = "../../test/specs/"
+	testEventDir           = "../../test/events/"
+	tPrintfTransfOutputFmt = "transformation output: %+v\n"
+	tPrintfTransformedFmt  = "transformed: %s\n"
 )
 
 var (
-	rawEvent = "{\"foo\": {\"evtType\": \"FOO_SESSION_BEGIN\",\"ts\": [{\"label\": \"someLabel\",\"time\": 1574608103112}],\"evtVer\": \"1.10\",\"evtId\": \"1c9fa7a0-f475-4ab5-b62b-073f4551e5f1\"},\"bar\": {\"stuff\": {\"sid\": \"0f4b8df8-f6e6-4432-a52d-05692b3a5c58\",\"pInfo\": {\"pName\": \"somename\",\"pId\": 82348,\"pCur\": \"SEK\"}}}}"
-
+	rawEvent        = "{\"foo\": {\"evtType\": \"FOO_SESSION_BEGIN\",\"ts\": [{\"label\": \"someLabel\",\"time\": 1574608103112}],\"evtVer\": \"1.10\",\"evtId\": \"1c9fa7a0-f475-4ab5-b62b-073f4551e5f1\"},\"bar\": {\"stuff\": {\"sid\": \"0f4b8df8-f6e6-4432-a52d-05692b3a5c58\",\"pInfo\": {\"pName\": \"somename\",\"pId\": 82348,\"pCur\": \"SEK\"}}}}"
 	printTestOutput bool
 )
 
@@ -47,18 +48,18 @@ func TestTransformer(t *testing.T) {
 	output, err = transformer.Transform(context.Background(), fileBytes, &retryable)
 	assert.NoError(t, err)
 	require.NotNil(t, output)
-	tPrintf("Transformation output: %+v\n", output)
+	tPrintf(tPrintfTransfOutputFmt, output)
 
 	fileBytes, _ = ioutil.ReadFile(testEventDir + "foo_session_end_ex1.json")
 	output, err = transformer.Transform(context.Background(), fileBytes, &retryable)
 	assert.NoError(t, err)
 	require.NotNil(t, output)
-	tPrintf("Transformation output: %+v\n", output)
+	tPrintf(tPrintfTransfOutputFmt, output)
 
 	output, err = transformer.Transform(context.Background(), []byte(rawEvent), &retryable)
 	assert.NoError(t, err)
 	require.NotNil(t, output)
-	tPrintf("Transformation output: %+v\n", output)
+	tPrintf(tPrintfTransfOutputFmt, output)
 
 }
 
@@ -91,7 +92,7 @@ func TestTransformer_Regexp(t *testing.T) {
 	transformer = NewTransformer(spec)
 	output, err = transformer.Transform(context.Background(), []byte(sdJson), &retryable)
 	assert.NoError(t, err)
-	tPrintf("Transformation output: %+v\n", output)
+	tPrintf(tPrintfTransfOutputFmt, output)
 	assert.Nil(t, output)
 
 	// RegExp spec 2
@@ -103,7 +104,7 @@ func TestTransformer_Regexp(t *testing.T) {
 	transformer = NewTransformer(spec)
 	output, err = transformer.Transform(context.Background(), []byte(sdJson), &retryable)
 	assert.NoError(t, err)
-	tPrintf("Transformation output: %+v\n", output)
+	tPrintf(tPrintfTransfOutputFmt, output)
 	assert.NotNil(t, output)
 	out = output[0].Data["regexppayload"]
 	expected = "{\"customer\":\"cust2\",\"logLevel\":\"INFO\",\"method\":\"getUserInfo\",\"responseTime\":\"493\",\"ts\":\"2020-07-01T16:06:57+02:00\"}"
@@ -151,7 +152,7 @@ func TestTransformer_ExtractFields(t *testing.T) {
 	transformed, err := extractFields(ef, []byte(json))
 	assert.NoError(t, err)
 	assert.NotNil(t, transformed)
-	tPrintf("transformed: %s\n", transformed.String())
+	tPrintf(tPrintfTransformedFmt, transformed.String())
 
 	fields = []entity.Field{
 		{
@@ -180,7 +181,7 @@ func TestTransformer_ExtractFields(t *testing.T) {
 	transformed, err = extractFields(ef, []byte(json))
 	assert.NoError(t, err)
 	assert.NotNil(t, transformed)
-	tPrintf("transformed: %s\n", transformed)
+	tPrintf(tPrintfTransformedFmt, transformed)
 	coolNumber, ok := transformed.Data["myCoolNumber"]
 	assert.True(t, ok)
 	assert.Equal(t, "333", coolNumber)
@@ -232,7 +233,7 @@ func TestTransformer_ExtractFields(t *testing.T) {
 	transformed, err = extractFields(ef, []byte(json))
 	assert.NoError(t, err)
 	assert.NotNil(t, transformed)
-	tPrintf("transformed: %s", transformed.String())
+	tPrintf(tPrintfTransformedFmt, transformed.String())
 
 	json = `{"coolUnixTimestamp": "1571831226959"}`
 	fields = []entity.Field{
@@ -248,7 +249,7 @@ func TestTransformer_ExtractFields(t *testing.T) {
 	transformed, err = extractFields(ef, []byte(json))
 	assert.NoError(t, err)
 	assert.NotNil(t, transformed)
-	tPrintf("transformed: %s", transformed.String())
+	tPrintf(tPrintfTransformedFmt, transformed.String())
 
 	// Test full event data transform
 	json = `{"myThing": "1", "myOtherThing": 2}`
@@ -265,7 +266,7 @@ func TestTransformer_ExtractFields(t *testing.T) {
 	transformed, err = extractFields(ef, []byte(json))
 	assert.NoError(t, err)
 	assert.NotNil(t, transformed)
-	tPrintf("transformed: %s\n", transformed.String())
+	tPrintf(tPrintfTransformedFmt, transformed.String())
 
 	json = `{"cloudyWeather": true, "rainyWeather": false}`
 	fields = []entity.Field{
@@ -286,7 +287,7 @@ func TestTransformer_ExtractFields(t *testing.T) {
 	transformed, err = extractFields(ef, []byte(json))
 	assert.NoError(t, err)
 	assert.NotNil(t, transformed)
-	tPrintf("transformed: %s", transformed.String())
+	tPrintf(tPrintfTransformedFmt, transformed.String())
 
 	json = `{"amount": 92834.37}`
 	fields = []entity.Field{
@@ -302,7 +303,7 @@ func TestTransformer_ExtractFields(t *testing.T) {
 	transformed, err = extractFields(ef, []byte(json))
 	assert.NoError(t, err)
 	assert.NotNil(t, transformed)
-	tPrintf("transformed: %s", transformed.String())
+	tPrintf(tPrintfTransformedFmt, transformed.String())
 }
 
 func TestJsonBlobExtract(t *testing.T) {
@@ -374,7 +375,7 @@ func TestTransformer_ArrayConditionals(t *testing.T) {
 	assert.NoError(t, err)
 	require.NotNil(t, output)
 	require.Equal(t, "2019-12-07T13:21:42.615Z", output[0].Data["eventDate"])
-	tPrintf("Transformation output: %+v\n", output)
+	tPrintf(tPrintfTransfOutputFmt, output)
 
 	output, err = transformer.Transform(context.Background(), []byte(nonApplicableErsEvent), &retryable)
 	assert.NoError(t, err)
@@ -384,7 +385,7 @@ func TestTransformer_ArrayConditionals(t *testing.T) {
 	assert.NoError(t, err)
 	require.NotNil(t, output)
 	require.Equal(t, output[0].Data["eventDate"], "2099-12-07T23:21:43.735Z")
-	tPrintf("Transformation output: %+v\n", output)
+	tPrintf(tPrintfTransfOutputFmt, output)
 }
 
 func tPrintf(format string, a ...any) {
@@ -436,7 +437,7 @@ func TestTransformer_TransformedItemsFromJsonArray(t *testing.T) {
 	assert.True(t, ok)
 	result = gjson.Get(json, "coolArray.1")
 	assert.Equal(t, result.Raw, value)
-	tPrintf("transformed: %s\n", transformed)
+	tPrintf(tPrintfTransformedFmt, transformed)
 
 	// Testing with full stream spec
 	var (
@@ -462,7 +463,7 @@ func TestTransformer_TransformedItemsFromJsonArray(t *testing.T) {
 	value, ok = items["cust2#prod_x"]
 	assert.True(t, ok)
 	assert.NotEmpty(t, value.(string))
-	tPrintf("Transformation output: %+v\n", output)
+	tPrintf(tPrintfTransfOutputFmt, output)
 }
 
 func TestTransformer_ExcludeEvents(t *testing.T) {

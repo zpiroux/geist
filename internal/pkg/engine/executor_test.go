@@ -264,7 +264,9 @@ func (p *PanickingMockLoader) StreamLoad(ctx context.Context, data []*entity.Tra
 	return "nope", nil, false
 }
 
-func (p *PanickingMockLoader) Shutdown() {}
+func (p *PanickingMockLoader) Shutdown() {
+	// nothing to mock here
+}
 
 // Test sink handling logic
 func TestExecutor_ProcessEvent(t *testing.T) {
@@ -365,7 +367,9 @@ func (s *MockLoader_StoreLatest) StreamLoad(ctx context.Context, data []*entity.
 	return properResourceId, nil, false
 }
 
-func (s *MockLoader_StoreLatest) Shutdown() {}
+func (s *MockLoader_StoreLatest) Shutdown() {
+	// nothing to mock here
+}
 
 type MockLoader_NoError struct{}
 
@@ -374,7 +378,9 @@ func (s *MockLoader_NoError) StreamLoad(ctx context.Context, data []*entity.Tran
 	return properResourceId, nil, false
 }
 
-func (s *MockLoader_NoError) Shutdown() {}
+func (s *MockLoader_NoError) Shutdown() {
+	// nothing to mock here
+}
 
 type MockLoader_Error struct{}
 
@@ -383,7 +389,9 @@ func (s *MockLoader_Error) StreamLoad(ctx context.Context, data []*entity.Transf
 	return noResourceId, errors.New("something bad happened"), false
 }
 
-func (s *MockLoader_Error) Shutdown() {}
+func (s *MockLoader_Error) Shutdown() {
+	// nothing to mock here
+}
 
 type MockLoader_RetryableError struct{}
 
@@ -392,7 +400,9 @@ func (s *MockLoader_RetryableError) StreamLoad(ctx context.Context, data []*enti
 	return noResourceId, errors.New("something bad happened"), true
 }
 
-func (s *MockLoader_RetryableError) Shutdown() {}
+func (s *MockLoader_RetryableError) Shutdown() {
+	// nothing to mock here
+}
 
 type MockTransformer struct {
 	spec entity.Transform

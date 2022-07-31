@@ -18,7 +18,7 @@ type LoaderFactory interface {
 
 	// NewSinkExtractor creates an extractor to enable retrieving data from the sink
 	// as written by the loader.
-	// This functionality is optional and if not implemented the function should return nil, nil. 
+	// This functionality is optional and if not implemented the function should return nil, nil.
 	NewSinkExtractor(ctx context.Context, spec *Spec, id string) (Extractor, error)
 
 	// Close is called by Geist after using Geist API geist.Shutdown()

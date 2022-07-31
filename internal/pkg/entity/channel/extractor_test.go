@@ -83,7 +83,6 @@ func newTestExtractor(t *testing.T, specBytes []byte) *extractor {
 	return extractor
 }
 
-
 func newTestExtractorFromFile(t *testing.T, specId string) *extractor {
 
 	spec, err := getTestSpec(specId)

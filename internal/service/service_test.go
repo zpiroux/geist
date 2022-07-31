@@ -57,5 +57,4 @@ func TestInitServiceConfig(t *testing.T) {
 	assert.Equal(t, s.config.Engine.AdminSpec, adminSpecNative)
 
 	// TODO: Test correct values for lib client provided (custom) Admin Spec
-
 }

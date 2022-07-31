@@ -20,11 +20,11 @@ func TestProperties(t *testing.T) {
 	transformed, err := transformer.Transform(ctx, event, &retryable)
 	assert.NoError(t, err)
 
-   lf := NewLoaderFactory()
+	lf := NewLoaderFactory()
 
 	l, err := lf.NewLoader(context.Background(), spec, "someId")
 	assert.NoError(t, err)
-   voidLoader := l.(*loader)
+	voidLoader := l.(*loader)
 
 	assert.Equal(t, "true", voidLoader.props["logEventData"])
 

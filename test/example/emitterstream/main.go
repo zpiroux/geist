@@ -65,7 +65,7 @@ var specEmitterStream = []byte(`
     {
         "namespace": "my",
         "streamIdSuffix": "event-emitter-stream",
-        "description": "Test stream continously processing events from a custom extractor.",
+        "description": "Test stream continuously processing events from a custom extractor.",
         "version": 1,
         "source": {
             "type": "eventEmitter",
