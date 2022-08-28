@@ -16,10 +16,7 @@ import (
 	"github.com/zpiroux/geist/internal/pkg/igeist"
 )
 
-const (
-	testDirPath  = "../../../test/"
-	testEventDir = testDirPath + "events/"
-)
+const testDirPath = "../../../test/"
 
 var printTestOutput = true
 

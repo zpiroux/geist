@@ -20,4 +20,4 @@ const (
 // action to take.
 // The event is provided as a mutable argument to avoid requiring the client to always
 // return data even if not used.
-type PreTransformHookFunc func(ctx context.Context, event *[]byte) HookAction
+type PreTransformHookFunc func(ctx context.Context, streamId string, event *[]byte) HookAction

@@ -66,7 +66,8 @@ func TestSpecModel(t *testing.T) {
     "names": ["topic1", "topic2"]
   }`)
 	var topicSpec Topics
-	json.Unmarshal(topicSpecJSON, &topicSpec)
+	err = json.Unmarshal(topicSpecJSON, &topicSpec)
+	assert.NoError(t, err)
 	assert.Equal(t, "my-cool-env", string(topicSpec.Env))
 
 	// Validate regexp compile

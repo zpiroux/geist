@@ -143,6 +143,20 @@ func TestExecutorHookLogic(t *testing.T) {
 	assert.Equal(t, 0, streamLoadAttempts)
 	assert.Equal(t, entity.ExecutorStatusError, result.Status)
 	assert.False(t, result.Retryable)
+
+	// Check received stream ID
+	event.TestType = "enrichWithStreamId"
+	streamLoadAttempts = 0
+	result = executor.ProcessEvent(context.Background(), newHookEvent(event))
+	assert.NoError(t, result.Error)
+	assert.Equal(t, entity.ExecutorStatusSuccessful, result.Status)
+	assert.Equal(t, 1, streamLoadAttempts)
+	eventStoredInSink = loader.Data[0].Data["originalEventData"]
+	err = json.Unmarshal(eventStoredInSink.([]byte), &event)
+	assert.NoError(t, err)
+	assert.Equal(t, spec.Id(), event.SomeInputValue)
+
+	streamLoadAttempts = 0
 }
 
 func newHookEvent(he HookFuncEvent) []entity.Event {
@@ -155,13 +169,13 @@ type HookFuncEvent struct {
 	SomeInputValue string
 }
 
-func preTransformHookFunc(ctx context.Context, event *[]byte) entity.HookAction {
+func preTransformHookFunc(ctx context.Context, streamId string, event *[]byte) entity.HookAction {
 
 	var (
 		e   HookFuncEvent
 		err error
 	)
-	json.Unmarshal(*event, &e)
+	_ = json.Unmarshal(*event, &e)
 
 	switch e.TestType {
 	case "continue":
@@ -189,6 +203,12 @@ func preTransformHookFunc(ctx context.Context, event *[]byte) entity.HookAction 
 		return entity.HookActionShutdown
 	case "invalidReturnValue":
 		return 76395
+	case "enrichWithStreamId":
+		*event, err = sjson.SetBytes(*event, "SomeInputValue", streamId)
+		if err != nil {
+			return entity.HookActionUnretryableError
+		}
+		return entity.HookActionProceed
 	default:
 		return entity.HookActionInvalid
 	}
