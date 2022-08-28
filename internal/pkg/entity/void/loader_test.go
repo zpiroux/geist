@@ -28,7 +28,8 @@ func TestProperties(t *testing.T) {
 
 	assert.Equal(t, "true", voidLoader.props["logEventData"])
 
-	l.StreamLoad(ctx, transformed)
+	_, err, _ = l.StreamLoad(ctx, transformed)
+	assert.NoError(t, err)
 }
 
 var specBytes = []byte(`{

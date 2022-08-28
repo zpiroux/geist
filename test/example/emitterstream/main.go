@@ -57,8 +57,13 @@ func RunStream(ctx context.Context) {
 		log.Printf("stream registered with streamId: %s", streamId)
 	}()
 
-	g.Run(ctx)
-	g.Shutdown(ctx)
+	err = g.Run(ctx)
+
+	if err != nil {
+		log.Fatalf("Run() error: %v", err)
+	}
+
+	_ = g.Shutdown(ctx)
 }
 
 var specEmitterStream = []byte(`

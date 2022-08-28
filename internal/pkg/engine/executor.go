@@ -155,7 +155,7 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 		// Apply injection of stream processing logic if requested
 		if e.config.PreTransformHookFunc != nil {
 
-			action := e.config.PreTransformHookFunc(ctx, &event.Data)
+			action := e.config.PreTransformHookFunc(ctx, e.stream.Spec().Id(), &event.Data)
 
 			switch action {
 			case entity.HookActionProceed:

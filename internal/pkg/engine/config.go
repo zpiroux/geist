@@ -6,9 +6,9 @@ import (
 )
 
 type Config struct {
-	RegSpec                   igeist.Spec // Built-in spec for GEIST spec registrations
-	AdminSpec                 igeist.Spec // Built-in spec for GEIST admin event notifications
-	PreTransformHookFunc      entity.PreTransformHookFunc
+	RegSpec                   igeist.Spec                 // Built-in spec for GEIST spec registrations
+	AdminSpec                 igeist.Spec                 // Built-in spec for GEIST admin event notifications
+	PreTransformHookFunc      entity.PreTransformHookFunc `json:"-"`
 	EventLogInterval          int
 	MaxStreamRetryIntervalSec int
 }
