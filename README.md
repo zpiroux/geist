@@ -2,6 +2,7 @@
 <div>
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/zpiroux/geist)](https://goreportcard.com/report/github.com/zpiroux/geist)
+[![Go Reference](https://pkg.go.dev/badge/github.com/zpiroux/geist.svg)](https://pkg.go.dev/github.com/zpiroux/geist)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=zpiroux_geist&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=zpiroux_geist)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=zpiroux_geist&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=zpiroux_geist)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=zpiroux_geist&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=zpiroux_geist)
@@ -29,7 +30,7 @@ Prerequisites: Go 1.18
 
 Install with:
 ```sh
-go get -u github.com/zpiroux/geist
+go get github.com/zpiroux/geist
 ```
 
 Example of simplified Geist test usage (error handling omitted) with an interactive stream where the sink simply logs info on transformed event data (using the built-in `void` debug/test sink).
@@ -365,7 +366,7 @@ Internal logging could be made more configurable externally.
 Log level is based on environment variable LOG_LEVEL. If not set, INFO will be used.
 
 ### Spec schema
-For historical reasons some fields in the [Spec schema](entity/spec.go) are only used for specific source/sink types, even though the customConfig enables any arbitrary config to be used.
+For historical reasons some fields in the [Spec schema](entity/spec.go) are only used for specific source/sink types, even though the `customConfig` enables any arbitrary config to be used.
 
 ## Contact
 info @ zpiroux . com
