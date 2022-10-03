@@ -143,7 +143,6 @@ func (r *StreamRegistry) registerSpec(ctx context.Context, id string, path strin
 
 func (r *StreamRegistry) SetAdminStream(stream igeist.Stream) {
 	// Admin stream not part of these tests
-
 }
 
 // Executor interface impl

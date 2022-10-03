@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -66,7 +67,15 @@ func TestExecutorHookLogic(t *testing.T) {
 		nil,
 	)
 
-	executor := NewExecutor(Config{PreTransformHookFunc: preTransformHookFunc}, stream)
+	notifyChan := make(entity.NotifyChan, 128)
+	go handleNotificationEvents(notifyChan)
+	time.Sleep(time.Second)
+	config := Config{
+		PreTransformHookFunc: preTransformHookFunc,
+		NotifyChan:           notifyChan,
+	}
+
+	executor := NewExecutor(config, stream)
 
 	// Normal flow, no enrichment
 	event := HookFuncEvent{TestType: "continue"}
@@ -157,6 +166,14 @@ func TestExecutorHookLogic(t *testing.T) {
 	assert.Equal(t, spec.Id(), event.SomeInputValue)
 
 	streamLoadAttempts = 0
+
+	time.Sleep(2 * time.Second)
+}
+
+func handleNotificationEvents(notifyChan entity.NotifyChan) {
+	for event := range notifyChan {
+		fmt.Printf("%+v\n", event)
+	}
 }
 
 func newHookEvent(he HookFuncEvent) []entity.Event {
@@ -230,7 +247,14 @@ func TestExecutorConnectorResilience(t *testing.T) {
 		&MockLoader_NoError{},
 		nil,
 	)
-	executor := NewExecutor(Config{}, stream)
+	cfg := Config{
+		NotifyChan: make(entity.NotifyChan, 6),
+		Log:        false,
+	}
+	go handleNotificationEvents(cfg.NotifyChan)
+	time.Sleep(time.Second)
+
+	executor := NewExecutor(cfg, stream)
 	assert.NotNil(t, executor)
 
 	var wg sync.WaitGroup
@@ -241,6 +265,8 @@ func TestExecutorConnectorResilience(t *testing.T) {
 	// Loader/Sink resilience
 	stream.loader = &PanickingMockLoader{}
 	_ = executor.ProcessEvent(context.Background(), tinyTestEvent(time.Now()))
+
+	time.Sleep(time.Second)
 }
 
 type PanickingMockExtractor struct {
@@ -302,7 +328,15 @@ func TestExecutorProcessEvent(t *testing.T) {
 		&MockLoader_NoError{},
 		etltest.NewMockExtractor(spec.Source.Config), // not used, but should be changed to full spec
 	)
-	executor := NewExecutor(Config{}, stream)
+
+	notifyChan := make(entity.NotifyChan, 128)
+	go handleNotificationEvents(notifyChan)
+	time.Sleep(time.Second)
+	config := Config{
+		NotifyChan: notifyChan,
+		Log:        false,
+	}
+	executor := NewExecutor(config, stream)
 
 	// Test happy path
 	result := executor.ProcessEvent(context.Background(), tinyTestEvent(time.Now()))

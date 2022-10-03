@@ -91,7 +91,7 @@ func TestTransformerRegexp(t *testing.T) {
 	spec.Transform.ExtractFields = []entity.ExtractFields{}
 	transformer = NewTransformer(spec)
 	output, err = transformer.Transform(context.Background(), []byte(sdJson), &retryable)
-	assert.NoError(t, err)
+	assert.EqualError(t, err, "wanted field: logEvent was not extracted")
 	tPrintf(tPrintfTransfOutputFmt, output)
 	assert.Nil(t, output)
 

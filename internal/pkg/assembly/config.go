@@ -10,6 +10,8 @@ import (
 type Config struct {
 	Loaders    entity.LoaderFactories
 	Extractors entity.ExtractorFactories
+	NotifyChan entity.NotifyChan `json:"-"`
+	Log        bool
 }
 
 func (c Config) Close() error {

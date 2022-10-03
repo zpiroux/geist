@@ -39,6 +39,7 @@ func TestSupervisor(t *testing.T) {
 
 	err := p.supervisor.Run(ctx, ready)
 	assert.NoError(t, err)
+	time.Sleep(time.Second)
 }
 
 func TestAdminEventHandlerStreamLoad(t *testing.T) {
@@ -123,21 +124,28 @@ func createRegistryModifiedEvent(streamId string) ([]byte, error) {
 }
 
 func gatherParticipants(t *testing.T, ctx context.Context) participants {
-	var (
-		p      participants
-		config Config
-	)
+	var p participants
+
 	p.registry = etltest.NewStreamRegistry(testDirPath)
 	err := p.registry.Fetch(ctx)
 	assert.NoError(t, err)
 
 	p.factory = etltest.NewStreamEntityFactory()
 	p.builder = NewStreamBuilder(p.factory)
+
+	notifyChan := make(entity.NotifyChan, 128)
+	go handleNotificationEvents(notifyChan)
+	time.Sleep(time.Second)
+
+	config := Config{
+		NotifyChan: notifyChan,
+		Log:        false,
+	}
 	p.supervisor, err = NewSupervisor(ctx, config, p.builder, p.registry)
 	assert.NoError(t, err)
 	assert.NotNil(t, p.supervisor)
 
-	p.createAdminEventStream(t, ctx)
+	p.createAdminEventStream(t, ctx, config)
 
 	err = p.supervisor.Init(ctx)
 	assert.NoError(t, err)
@@ -149,7 +157,7 @@ func doStuff(cancel context.CancelFunc) {
 	cancel()
 }
 
-func (p participants) createAdminEventStream(t *testing.T, ctx context.Context) {
+func (p participants) createAdminEventStream(t *testing.T, ctx context.Context, config Config) {
 	p.factory.SetAdminLoader(p.supervisor.AdminEventHandler())
 	spec, err := entity.NewSpec(admin.AdminEventSpec)
 	assert.NoError(t, err)
@@ -157,7 +165,7 @@ func (p participants) createAdminEventStream(t *testing.T, ctx context.Context) 
 	stream, err := p.builder.Build(ctx, spec)
 	assert.NoError(t, err)
 
-	adminEventStreamExecutor := NewExecutor(Config{}, stream)
+	adminEventStreamExecutor := NewExecutor(config, stream)
 	p.supervisor.RegisterExecutor(ctx, adminEventStreamExecutor)
 	p.registry.SetAdminStream(stream)
 }

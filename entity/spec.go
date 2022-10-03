@@ -188,9 +188,10 @@ type SourceConfig struct {
 	// acknowledged messages.
 	MaxOutstandingBytes *int `json:"maxOutstandingBytes,omitempty"`
 
-	// Synchronous is a PubSub consumer specific property, that can be used to tune certain type of streams (e.g.
-	// spiky input flow of messages with very heavy transforms or slow sinks, where setting this to true could
-	// reduce number of expired messages. Default is false.
+	// Synchronous can be used to tune certain type of streams (e.g. spiky input flow of messages with very heavy
+	// transforms or slow sinks), where setting this to true could reduce number of expired messages. It is optional
+	// for a source connector to implement.
+	// Default is false.
 	Synchronous *bool `json:"synchronous,omitempty"`
 
 	// NumGoroutines is a PubSub consumer specific property used for increasing rate of incoming messages in case
@@ -201,6 +202,14 @@ type SourceConfig struct {
 
 	// Properties holds direct low-level entity properties like Kafka consumer props
 	Properties []Property `json:"properties,omitempty"`
+
+	// SendToSource is an optional field for an extractor/source connector to support. If it does, it has the
+	// following meaning:
+	// 		* If set to true: The extractors SendToSource() interface method is enabled for this particualar stream.
+	//		* If set to false: The extractors SendToSource() interface method is disabled for this particualar stream
+	// 		* If omitted: The value to use will be the default value as set when constructing the connector.
+	// One reason to have this config availble per stream is to reduce memory allocation when it's not needed.
+	SendToSource *bool
 
 	// CustomConfig can be used by custom source/sink plugins for config options not explicitly provided by the Spec struct
 	CustomConfig any `json:"customConfig,omitempty"`

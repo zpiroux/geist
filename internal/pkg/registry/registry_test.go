@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/teltech/logger"
 	"github.com/zpiroux/geist/entity"
 	"github.com/zpiroux/geist/entity/transform"
 	"github.com/zpiroux/geist/internal/pkg/admin"
@@ -25,11 +26,11 @@ var (
 
 func TestStreamRegistryFetch(t *testing.T) {
 
-	log = log.WithLevel(logger.DEBUG)
-
 	config := Config{StorageMode: admin.RegStorageNative}
 	printTestOutput = false
 	tReg = t
+	ch := make(entity.NotifyChan, 16)
+	logging := false
 	ctx := context.Background()
 	spec := etltest.SpecSpec()
 
@@ -37,7 +38,7 @@ func TestStreamRegistryFetch(t *testing.T) {
 	stream, err := engine.NewStreamBuilder(etltest.NewStreamEntityFactory()).Build(ctx, spec)
 	assert.NoError(t, err)
 	regExecutor := engine.NewExecutor(engine.Config{}, stream)
-	registry := NewStreamRegistry(config, regExecutor)
+	registry := NewStreamRegistry(config, regExecutor, ch, logging)
 	assert.NotNil(t, registry)
 
 	err = registry.Fetch(ctx)
@@ -51,11 +52,10 @@ func TestStreamRegistryFetch(t *testing.T) {
 		tPrintf("Spec with data: %+v\n\n", spec.(*entity.Spec))
 	}
 
-	// TODO: Add test for in-mem
 	stream, err = engine.NewStreamBuilder(etltest.NewStreamEntityFactory()).Build(ctx, etltest.SpecSpecInMem())
 	assert.NoError(t, err)
 	regExecutor = engine.NewExecutor(engine.Config{}, stream)
-	registry = NewStreamRegistry(config, regExecutor)
+	registry = NewStreamRegistry(config, regExecutor, ch, logging)
 	assert.NotNil(t, registry)
 
 	err = registry.Fetch(ctx)
@@ -68,6 +68,46 @@ func TestStreamRegistryFetch(t *testing.T) {
 	tPrintf("\n%s\n", "registry.GetAll() returned:")
 	for _, spec := range specs {
 		tPrintf("Spec with data: %+v\n\n", spec.(*entity.Spec))
+	}
+}
+
+func TestRunStreamRegistry(t *testing.T) {
+	ctx := context.Background()
+	spec := etltest.SpecSpec()
+	log := false
+	notifyChan := make(entity.NotifyChan, 16)
+	go handleNotificationEvents(notifyChan)
+	time.Sleep(time.Duration(1) * time.Second)
+
+	stream, err := engine.NewStreamBuilder(etltest.NewStreamEntityFactory()).Build(ctx, spec)
+	assert.NoError(t, err)
+	engineConfig := engine.Config{
+		NotifyChan: notifyChan,
+		Log:        log,
+	}
+	regExecutor := engine.NewExecutor(engineConfig, stream)
+	registry := NewStreamRegistry(Config{}, regExecutor, notifyChan, log)
+	assert.NotNil(t, registry)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	ctx, cancel := context.WithCancel(ctx)
+	go registry.Run(ctx, &wg)
+	time.Sleep(time.Second)
+
+	err = registry.Put(ctx, spec.Id(), spec)
+	assert.NoError(t, err)
+	storedSpec, err := registry.Get(ctx, spec.Id())
+	assert.NoError(t, err)
+	assert.Equal(t, spec, storedSpec)
+
+	cancel()
+	wg.Wait()
+}
+
+func handleNotificationEvents(notifyChan entity.NotifyChan) {
+	for event := range notifyChan {
+		fmt.Printf("%+v\n", event)
 	}
 }
 

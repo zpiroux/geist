@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/tidwall/sjson"
+	"github.com/zpiroux/geist/entity"
 	"github.com/zpiroux/geist/internal/service"
 )
 
@@ -30,8 +31,8 @@ type Geist struct {
 	cancel  context.CancelFunc
 }
 
-// New creates and configures Geist's internal services and all previously registered streams,
-// based on the provided config, which needs to be initially created with NewConfig().
+// New creates and configures Geist's internal services and all previously registered
+// streams, based on the provided config, which needs to be initially created with NewConfig().
 func New(ctx context.Context, config *Config) (g *Geist, err error) {
 	if config.extractors == nil || config.loaders == nil {
 		return nil, ErrConfigNotInitialized
@@ -39,6 +40,19 @@ func New(ctx context.Context, config *Config) (g *Geist, err error) {
 	g = &Geist{}
 	g.service, err = service.New(ctx, preProcessConfig(config))
 	return g, err
+}
+
+// NotifyChannel returns the notification channel, from which it's possible to receive
+// notify/log events. By setting geist.Config.Ops.Logging to false (default) and using
+// the events from this channel in some external logging framework, it's possible to
+// completely replace Geist's internal logging with an external one.
+// The size of the channel buffer can be adjusted with geist.Config.Ops.NotifyChanSize
+// at Geist creation time.
+func (g *Geist) NotifyChannel() (entity.NotifyChan, error) {
+	if g.service == nil {
+		return nil, ErrGeistNotInitialized
+	}
+	return g.service.NotifyChan(), nil
 }
 
 // Run starts up Geist's internal services and all previously registered streams
@@ -56,8 +70,8 @@ func (g *Geist) Run(ctx context.Context) (err error) {
 }
 
 // RegisterStream validates and persist the stream spec in the chosen registry implementation.
-// If successful, the registered stream is started up immediately, and the generated ID of the stream
-// is returned.
+// If successful, the registered stream is started up immediately, and the generated ID of the
+// stream is returned.
 func (g *Geist) RegisterStream(ctx context.Context, specData []byte) (id string, err error) {
 
 	g.service.AwaitReady()
@@ -90,11 +104,12 @@ func (g *Geist) RegisterStream(ctx context.Context, specData []byte) (id string,
 // Currently known source types that supports this is the internal "geistapi" and the
 // GCP source "pubsub".
 //
-// The returned ID string (or resource ID) is dependent on the sink type, but is defined as the key
-// to be used for key lookups of the event.
-// It is created based on the Sink configuration in the Stream Spec for sink types supporting it,
-// for example:
-// 		Firestore: ID is the generated Firestore entity name, as specified in the entityNameFromIds section of the sink spec.
+// The returned ID string (or resource ID) is dependent on the sink type, but is defined
+// as the key to be used for key lookups of the event.
+// It is created based on the Sink configuration in the Stream Spec for sink types supporting
+// it, for example:
+// 		Firestore: ID is the generated Firestore entity name, as specified in the entityNameFromIds
+//                 section of the sink spec.
 //		BigTable: ID is the generated row-key, as specified in the rowKey section of the sink spec.
 func (g *Geist) Publish(ctx context.Context, streamId string, event []byte) (id string, err error) {
 	if g.service == nil {
@@ -164,8 +179,7 @@ func (g *Geist) Shutdown(ctx context.Context) (err error) {
 		return ErrGeistNotInitialized
 	}
 	g.cancel()
-	g.service.Shutdown(ctx, err)
-	return
+	return g.service.Shutdown(ctx)
 }
 
 // Entities returns IDs of all registered Extractors/Loaders for each Source/Sink.

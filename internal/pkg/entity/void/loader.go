@@ -9,13 +9,8 @@ import (
 
 	"github.com/teltech/logger"
 	"github.com/zpiroux/geist/entity"
+	"github.com/zpiroux/geist/internal/pkg/notify"
 )
-
-var log *logger.Log
-
-func init() {
-	log = logger.New()
-}
 
 const sinkTypeId = "void"
 
@@ -30,11 +25,11 @@ func (lf *LoaderFactory) SinkId() string {
 	return sinkTypeId
 }
 
-func (lf *LoaderFactory) NewLoader(ctx context.Context, spec *entity.Spec, id string) (entity.Loader, error) {
-	return newLoader(spec)
+func (lf *LoaderFactory) NewLoader(ctx context.Context, c entity.Config) (entity.Loader, error) {
+	return newLoader(c)
 }
 
-func (lf *LoaderFactory) NewSinkExtractor(ctx context.Context, spec *entity.Spec, id string) (entity.Extractor, error) {
+func (lf *LoaderFactory) NewSinkExtractor(ctx context.Context, c entity.Config) (entity.Extractor, error) {
 	return nil, nil
 }
 
@@ -43,22 +38,29 @@ func (lf *LoaderFactory) Close() error {
 }
 
 type loader struct {
-	spec         *entity.Spec
+	c            entity.Config
 	props        map[string]string
 	maxErrors    int
 	numberErrors int
+	notifier     *notify.Notifier
 }
 
-func newLoader(spec *entity.Spec) (*loader, error) {
+func newLoader(c entity.Config) (*loader, error) {
 	l := &loader{
-		spec:      spec,
+		c:         c,
 		props:     make(map[string]string),
 		maxErrors: math.MaxInt32,
 	}
 
-	if spec != nil {
-		if spec.Sink.Config != nil {
-			for _, prop := range spec.Sink.Config.Properties {
+	var log *logger.Log
+	if c.Log {
+		log = logger.New()
+	}
+	l.notifier = notify.New(c.NotifyChan, log, 2, "void.loader", l.c.ID, "")
+
+	if c.Spec != nil {
+		if c.Spec.Sink.Config != nil {
+			for _, prop := range c.Spec.Sink.Config.Properties {
 				l.props[prop.Key] = prop.Value
 			}
 			if value, ok := l.props["maxErrors"]; ok {
@@ -81,9 +83,9 @@ func (l *loader) StreamLoad(ctx context.Context, data []*entity.Transformed) (st
 		resourceId = "<noResourceId>"
 	)
 
-	if l.spec.Ops.LogEventData {
+	if l.c.Spec.Ops.LogEventData {
 		for _, transformed := range data {
-			log.Infof("Received transformed event in void.loader: %s", transformed.String())
+			l.notifier.Notify(entity.NotifyLevelInfo, "Received transformed event: %s", transformed.String())
 		}
 	}
 
@@ -96,7 +98,7 @@ func (l *loader) StreamLoad(ctx context.Context, data []*entity.Transformed) (st
 
 	if value, ok := l.props["logEventData"]; ok {
 		if value == "true" {
-			log.Infof("[voidsink] transformed.String() = %s", data[0].String())
+			l.notifier.Notify(entity.NotifyLevelInfo, "transformed.String() = %s", data[0].String())
 		}
 	}
 
@@ -139,7 +141,10 @@ func (l *loader) handleSinkMode(data []*entity.Transformed, resourceId string) (
 				return resourceId, errors.New("streamLoad called without data to load (data[0] == nil)"), false
 			}
 
-			specData := data[0].Data["rawEvent"].(string)
+			specData, ok := data[0].Data["rawEvent"].(string)
+			if !ok {
+				return resourceId, fmt.Errorf("rawEvent data not found or invalid type"), false
+			}
 			spec, err := entity.NewSpec([]byte(specData))
 			if err != nil {
 				return resourceId, fmt.Errorf("could not create Stream Spec from event data in in-mem Reg Sink StreamLoad, error: %s", err), false

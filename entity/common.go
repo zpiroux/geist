@@ -1,6 +1,8 @@
 package entity
 
-import "errors"
+import (
+	"errors"
+)
 
 // Native stream entity types (sources, sinks or both)
 type EntityType string
@@ -19,6 +21,14 @@ var ReservedEntityNames = map[string]bool{
 	string(EntityGeistApi): true,
 }
 
+// Config is the Entity Config to use with Entity factories
+type Config struct {
+	Spec       *Spec
+	ID         string
+	NotifyChan NotifyChan
+	Log        bool
+}
+
 // Some Stream ETL Entities need different configurations based on environements.
 // This is not possible to set in the generic GEIST build config since ETL entities are
 // configured in externally provided ETL Stream Specs. The environment concept is
@@ -26,9 +36,9 @@ var ReservedEntityNames = map[string]bool{
 //
 // The following env types are provided by Geist for consistency across entity plugins,
 // but any type of custom string can be used by plugin entities.
-// For example, a custom plugin extractor could support having "env": "eu-stage" in the
-// stream spec using that extractor/source, since the extractor implementation can cast the
-// Environment type back to string when matching.
+// For example, a custom plugin extractor could support having "env": "someregion-staging"
+// in the stream spec using that extractor/source, since the extractor implementation can
+// cast the Environment type back to string when matching.
 type Environment string
 
 const (

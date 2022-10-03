@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -84,18 +85,46 @@ var testSpec2 = []byte(`
 func TestGeist(t *testing.T) {
 
 	ctx := context.Background()
+
 	_, err := New(ctx, &Config{})
 	assert.Equal(t, err, ErrConfigNotInitialized)
 
-	//log = log.WithLevel(logger.DEBUG)
+	// Create Geist
 	cfg := NewConfig()
+	cfg.Ops.Log = false
 	geist, err := New(ctx, cfg)
 	assert.NoError(t, err)
 
-	go geistTest(ctx, geist, t)
+	// Set up notification event handling
+	notifyChan, err := geist.NotifyChannel()
+	assert.NoError(t, err)
+	var (
+		wg                   sync.WaitGroup
+		nbNotificationEvents int
+	)
+	wg.Add(1)
+	go handleNotificationEvents(notifyChan, &wg, &nbNotificationEvents)
+	time.Sleep(time.Second)
 
+	// Run geist tests
+	go geistTest(ctx, geist, t)
 	err = geist.Run(ctx)
 	assert.NoError(t, err)
+
+	// Validate nofication event functionality
+	close(notifyChan)
+	wg.Wait()
+	assert.Equal(t, 18, nbNotificationEvents)
+}
+
+func handleNotificationEvents(ch entity.NotifyChan, wg *sync.WaitGroup, nbEvents *int) {
+	var n int
+	for event := range ch {
+		n++
+		fmt.Printf("%+v\n", event)
+	}
+	*nbEvents = n
+	wg.Done()
 }
 
 func geistTest(ctx context.Context, geist *Geist, t *testing.T) {
@@ -272,8 +301,8 @@ func (sef *SillyExtractorFactory) SourceId() string {
 	return sef.sourceId
 }
 
-func (sef *SillyExtractorFactory) NewExtractor(ctx context.Context, spec *entity.Spec, id string) (entity.Extractor, error) {
-	return &sillyExtractor{spec: spec}, nil
+func (sef *SillyExtractorFactory) NewExtractor(ctx context.Context, c entity.Config) (entity.Extractor, error) {
+	return &sillyExtractor{spec: c.Spec}, nil
 }
 
 func (sef *SillyExtractorFactory) Close() error {
@@ -325,11 +354,11 @@ func (slf *SillyLoaderFactory) SinkId() string {
 	return slf.sinkId
 }
 
-func (slf *SillyLoaderFactory) NewLoader(ctx context.Context, spec *entity.Spec, id string) (entity.Loader, error) {
+func (slf *SillyLoaderFactory) NewLoader(ctx context.Context, c entity.Config) (entity.Loader, error) {
 	slf.latestLoader = &sillyLoader{}
 	return slf.latestLoader, nil
 }
-func (slf *SillyLoaderFactory) NewSinkExtractor(ctx context.Context, spec *entity.Spec, id string) (entity.Extractor, error) {
+func (slf *SillyLoaderFactory) NewSinkExtractor(ctx context.Context, c entity.Config) (entity.Extractor, error) {
 	return nil, nil
 }
 func (slf *SillyLoaderFactory) Close() error {

@@ -16,24 +16,26 @@ type ExtractorFactory interface {
 	SourceId() string
 
 	// NewExtractor creates a new extractor entity
-	NewExtractor(ctx context.Context, spec *Spec, id string) (Extractor, error)
+	NewExtractor(ctx context.Context, c Config) (Extractor, error)
 
 	// Close is called by Geist after client has called Geist API geist.Shutdown()
 	Close() error
 }
 
-// Extractor interface required for stream source extractor implementations and for sink queries.
-// The Extractor implementation should be given its GEIST Spec in a constructor.
+// Extractor is the interface required for stream source extractor implementations
+// and for sink queries. The Extractor implementation should be given its GEIST Spec
+// in a constructor.
 //
-// For source stream extractors the only function required to be fully functional is StreamExtract().
+// For source stream extractors the only function required to be fully functional is
+// StreamExtract().
 //
 // For sink extractors the only function required to be fully functional is ExtractFromSink().
 //
-// The others are situational depending on extractor/source entity type, and could be empty,
-// e.g. simply returning nil, false (or someerror, false).
+// The others are situational depending on extractor/source entity type, and could be
+// empty, e.g. simply returning nil, false (or someerror, false).
 type Extractor interface {
 
-	// StreamExtract continuously consumes events from its source (until ctx is canceled),
+	// StreamExtract (required) continuously consumes events from its source (until ctx is canceled),
 	// and report each consumed event back to Executor with reportEvent(), for further processing.
 	StreamExtract(
 		ctx context.Context,
@@ -41,17 +43,21 @@ type Extractor interface {
 		err *error,
 		retryable *bool)
 
-	// Extract provides generic extraction from the source based on the provided query, and returns directly.
-	// Optional functionality. Currently only supported by Firestore extractor (but not in use). Kept for future functionality.
+	// Extract (optional) provides generic extraction from the source based on the provided query,
+	// and returns directly.
 	Extract(ctx context.Context, query ExtractorQuery, result any) (error, bool)
 
-	// ExtractFromSink extracts data from the sink used in an ETL Stream, as specified in the Extractors GEIST spec.
-	// Currently only supported by Firestore and BigTable extractors.
+	// ExtractFromSink (optional) extracts data from the sink used in an ETL Stream, as specified
+	// in the Extractors GEIST spec. Currently only supported by Firestore and BigTable extractors.
 	ExtractFromSink(ctx context.Context, query ExtractorQuery, result *[]*Transformed) (error, bool)
 
-	// SendToSource enables external clients to send events directly to the Extractor's Source.
-	// Optional functionality. Currently only supported by "geistapi" (channel) extractor (for Publish() functionality)
-	// and by Pubsub extractor (used in admin stream for posting registry change events to concurrent supervisors).
+	// SendToSource (optional) enables external clients to send events directly to the Extractor's
+	// Source with Geist.Publish().
+	// For source connectors meant to be used in admin streams, this method is required.
+	// Currently known connectors that implement this method are:
+	//		* "geistapi" (channel) extractor
+	// 		* "pubsub" GCP extractor
+	//		* "kafka" extractor
 	SendToSource(ctx context.Context, event any) (string, error)
 }
 

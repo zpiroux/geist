@@ -22,7 +22,7 @@ func TestProperties(t *testing.T) {
 
 	lf := NewLoaderFactory()
 
-	l, err := lf.NewLoader(context.Background(), spec, "someId")
+	l, err := lf.NewLoader(context.Background(), entity.Config{Spec: spec, ID: "someId"})
 	assert.NoError(t, err)
 	voidLoader := l.(*loader)
 
@@ -30,6 +30,20 @@ func TestProperties(t *testing.T) {
 
 	_, err, _ = l.StreamLoad(ctx, transformed)
 	assert.NoError(t, err)
+
+	// Test handling of sink mode
+	prop := entity.Property{Key: "mode", Value: inMemRegistryMode}
+	spec.Sink.Config.Properties = append(spec.Sink.Config.Properties, prop)
+	l, err = lf.NewLoader(context.Background(), entity.Config{Spec: spec, ID: "someId"})
+	assert.NoError(t, err)
+	transformed[0].Data["rawEvent"] = 3
+	_, err, _ = l.StreamLoad(ctx, transformed)
+	assert.EqualError(t, err, "rawEvent data not found or invalid type", err)
+
+	var emptyTransformed entity.Transformed
+	_, err, _ = l.StreamLoad(ctx, []*entity.Transformed{&emptyTransformed})
+	assert.EqualError(t, err, "rawEvent data not found or invalid type", err)
+
 }
 
 var specBytes = []byte(`{
