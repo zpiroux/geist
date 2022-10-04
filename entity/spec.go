@@ -265,29 +265,29 @@ type Transform struct {
 
 	ExtractItemsFromArray []ExtractItemsFromArray `json:"extractItemsFromArray,omitempty"`
 
-	// AddFieldsToJson can contain a list of extracted fields to be added to a another extracted field,
-	// if that field is a JSON.
-	AddFieldsToJson AddFieldsToJson `json:"addFieldsToJson,omitempty"`
-
 	// The Regexp transformation transforms a string into a JSON based on the groupings in
 	// the regular expression.
 	// Minimum one groupings needs to be made.
 	Regexp *Regexp `json:"regexp,omitempty"`
 }
 
-type AddFieldsToJson struct {
-	JsonId      string
-	FieldsToAdd []string
-}
-
 // ExcludeEventsWith specifies if certain events should be skipped directly, without further processing.
 // If the event field as specified by the Key field matches any of the values in the Values array
-// the event will be excluded.
+// the event will be excluded. This is the Blacklisting option of this filter.
 // The Key string must be on a JSON path syntax according to github.com/tidwall/gjson (see below).
 // The value field is currently limited to string values.
+//
+// If Values array is missing or empty a check will be done on ValuesNotIn. If the event field as
+// specified by the Key field does not have a value matching any of the values in the ValuesNotIn
+// field, the event is excluded.
+// This is the Whitelisting option of this filter.
+//
+// If ValueIsEmpty is set to true and the field string value is empty, the event will be excluded.
 type ExcludeEventsWith struct {
-	Key    string   `json:"key"`
-	Values []string `json:"values"`
+	Key          string   `json:"key"`
+	Values       []string `json:"values,omitempty"`
+	ValuesNotIn  []string `json:"valuesNotIn,omitempty"`
+	ValueIsEmpty *bool    `json:"valueIsEmpty,omitempty"`
 }
 
 // The ExtractFields transformation type creates root level ID fields, with values

@@ -304,6 +304,26 @@ func TestTransformerExtractFields(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, transformed)
 	tPrintf(tPrintfTransformedFmt, transformed.String())
+
+	// Test non-existing field (should give empty transform value)
+	json = `{"someStuff": "foo"}`
+	fields = []entity.Field{
+		{
+			Id:       "myImportantField",
+			JsonPath: "importantStuff",
+		},
+	}
+	ef = entity.ExtractFields{
+		Fields: fields,
+	}
+	transformed, err = extractFields(ef, []byte(json))
+	assert.NoError(t, err)
+	assert.NotNil(t, transformed)
+	importantStuff, ok := transformed.Data["myImportantField"]
+	assert.True(t, ok)
+	assert.Equal(t, "", importantStuff)
+	fmt.Printf("transformed: %v\n", transformed)
+	fmt.Printf("importantStuff: %v\n", importantStuff)
 }
 
 func TestJsonBlobExtract(t *testing.T) {
@@ -466,7 +486,7 @@ func TestTransformerTransformedItemsFromJsonArray(t *testing.T) {
 	tPrintf(tPrintfTransfOutputFmt, output)
 }
 
-func TestTransformerExcludeEvents(t *testing.T) {
+func TestTransformerExcludeEventsBlacklist(t *testing.T) {
 
 	specJson := []byte(`
 	{
@@ -486,6 +506,10 @@ func TestTransformerExcludeEvents(t *testing.T) {
          		{
             		"key": "provider",
             		"values": ["unreliableService"]
+         		},
+         		{
+            		"key": "someFieldThatIfEmptyCauseBlacklisting",
+            		"valueIsEmpty": true
          		}
       		],
       		"extractFields": [
@@ -537,6 +561,7 @@ func TestTransformerExcludeEvents(t *testing.T) {
 	{
   		"name": "GREAT_EVENT",
   		"dateOccurred": "2020-12-13T01:45:00.456Z",
+		"someFieldThatIfEmptyCauseBlacklisting": "foo"
 	}`)
 
 	// Event should not be excluded (output != nil, err == nil)
@@ -548,11 +573,110 @@ func TestTransformerExcludeEvents(t *testing.T) {
 	{
   		"name": "GREAT_EVENT",
   		"dateOccurred": "2020-12-13T01:45:00.456Z",
+		"someFieldThatIfEmptyCauseBlacklisting": "foo"
         "provider": "unreliableService"
 	}`)
 
-	// Event should be excluded (output != nil, err == nil)
+	// Event should be excluded (output == nil, err == nil)
 	output, err = transformer.Transform(context.Background(), greatEventFromUnreliableService, &retryable)
+	assert.Nil(t, output)
+	assert.NoError(t, err)
+
+	greatEventWithMissingField := []byte(`
+	{
+  		"name": "GREAT_EVENT",
+  		"dateOccurred": "2020-12-13T01:45:00.456Z",
+	}`)
+
+	// Event should be excluded (output == nil, err == nil)
+	output, err = transformer.Transform(context.Background(), greatEventWithMissingField, &retryable)
+	assert.Nil(t, output)
+	assert.NoError(t, err)
+}
+
+func TestTransformerExcludeEventsWhitelist(t *testing.T) {
+
+	specJson := []byte(`
+	{
+   		"namespace": "geisttest",
+   		"streamIdSuffix": "xcludeevents",
+   		"version": 1,
+   		"description": "...",
+   		"source": {
+      		"type": "geistapi"
+   		},
+   		"transform": {
+      		"excludeEventsWith": [
+         		{
+            		"key": "name",
+            		"valuesNotIn": ["NICE_EVENT", "COOL_EVENT"]
+         		},
+         		{
+            		"key": "provider",
+            		"values": ["unreliableService"]
+         		}
+      		],
+      		"extractFields": [
+         		{
+            		"fields": [
+     	          		{
+        	          		"id": "rawEvent",
+            	      		"type": "string"
+               			}
+            		]
+         		}
+      		]
+   		},
+   		"sink": {
+      		"type": "void"
+   		}
+	}
+	`)
+
+	retryable := false
+	spec, err := entity.NewSpec(specJson)
+	assert.NoError(t, err)
+	require.NotNil(t, spec)
+	transformer := NewTransformer(spec)
+
+	uselessEvent := []byte(`
+	{
+  		"name": "USELESS_EVENT",
+	}`)
+
+	// Event should be excluded (output == nil, err == nil)
+	output, err := transformer.Transform(context.Background(), uselessEvent, &retryable)
+	assert.Nil(t, output)
+	assert.NoError(t, err)
+
+	niceEvent := []byte(`
+	{
+  		"name": "NICE_EVENT",
+	}`)
+
+	// Event should be included (output != nil, err == nil)
+	output, err = transformer.Transform(context.Background(), niceEvent, &retryable)
+	assert.NotNil(t, output)
+	assert.NoError(t, err)
+
+	coolEvent := []byte(`
+	{
+  		"name": "COOL_EVENT",
+	}`)
+
+	// Event should be included (output != nil, err == nil)
+	output, err = transformer.Transform(context.Background(), coolEvent, &retryable)
+	assert.NotNil(t, output)
+	assert.NoError(t, err)
+
+	coolEventFromUnreliableService := []byte(`
+	{
+  		"name": "COOL_EVENT",
+        "provider": "unreliableService"
+	}`)
+
+	// Event should be excluded (output == nil, err == nil)
+	output, err = transformer.Transform(context.Background(), coolEventFromUnreliableService, &retryable)
 	assert.Nil(t, output)
 	assert.NoError(t, err)
 }
