@@ -49,8 +49,8 @@ func (t *Transformer) Transform(
 	*retryable = false
 
 	if len(t.spec.Transform.ExcludeEventsWith) > 0 {
-		if exclude, err := t.shouldExclude(event, &transformed); exclude || err != nil {
-			return nil, err
+		if t.shouldExclude(event, &transformed) {
+			return nil, nil
 		}
 	}
 
@@ -75,26 +75,50 @@ func (t *Transformer) Transform(
 	return transformed, nil
 }
 
-func (t *Transformer) shouldExclude(event []byte, transformed *[]*entity.Transformed) (exclude bool, err error) {
+func (t *Transformer) shouldExclude(event []byte, transformed *[]*entity.Transformed) (exclude bool) {
 
 	for _, filter := range t.spec.Transform.ExcludeEventsWith {
 
 		valueToCheck := gjson.GetBytes(event, filter.Key)
 		if !valueToCheck.Exists() {
+			if filter.ValueIsEmpty != nil {
+				if *filter.ValueIsEmpty {
+					return true
+				}
+			}
 			continue
 		}
+		value := valueToCheck.String()
 
-		for _, excludeIfValue := range filter.Values {
-			if valueToCheck.String() == excludeIfValue {
-				exclude = true
+		if len(filter.Values) > 0 {
+			if exclude = excludeIfInBlacklist(value, filter.Values); exclude {
+				break
+			}
+		} else if len(filter.ValuesNotIn) > 0 {
+			if exclude = excludeIfNotInWhitelist(value, filter.ValuesNotIn); exclude {
 				break
 			}
 		}
-		if exclude {
-			break
+	}
+	return
+}
+
+func excludeIfInBlacklist(value string, filterValues []string) bool {
+	for _, excludeIfValue := range filterValues {
+		if value == excludeIfValue {
+			return true
 		}
 	}
-	return exclude, err
+	return false
+}
+
+func excludeIfNotInWhitelist(value string, filterValues []string) bool {
+	for _, includeIfValue := range filterValues {
+		if value == includeIfValue {
+			return false
+		}
+	}
+	return true
 }
 
 func (t *Transformer) extractFieldsTransform(event []byte, transformed *[]*entity.Transformed) error {

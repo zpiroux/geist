@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/teltech/logger"
@@ -89,8 +90,8 @@ func (e *Executor) Stream() igeist.Stream {
 
 func (e *Executor) Metrics() entity.Metrics {
 	return entity.Metrics{
-		EventsProcessed:    e.eventsProcessed,
-		EventsStoredInSink: e.eventsStoredInSink,
+		EventsProcessed:    atomic.LoadInt64(&e.eventsProcessed),
+		EventsStoredInSink: atomic.LoadInt64(&e.eventsStoredInSink),
 	}
 }
 
@@ -165,7 +166,7 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 	}
 
 	for _, event := range events {
-		e.eventsProcessed++
+		atomic.AddInt64(&e.eventsProcessed, 1)
 		if e.eventsProcessed%int64(e.config.EventLogInterval) == 0 {
 			e.notifier.Notify(entity.NotifyLevelInfo, "[metric] nb events processed: %d, stored in sink: %d", e.eventsProcessed, e.eventsStoredInSink)
 		}
@@ -230,7 +231,7 @@ func (e *Executor) loadToSink(ctx context.Context, transformed []*entity.Transfo
 		result.ResourceId, result.Error, result.Retryable = e.stream.Loader().StreamLoad(ctx, transformed)
 
 		if result.Error == nil {
-			e.eventsStoredInSink += int64(len(transformed))
+			atomic.AddInt64(&e.eventsStoredInSink, int64(len(transformed)))
 			result.Status = entity.ExecutorStatusSuccessful
 			break
 		}
