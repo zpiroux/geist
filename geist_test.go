@@ -129,6 +129,13 @@ func handleNotificationEvents(ch entity.NotifyChan, wg *sync.WaitGroup, nbEvents
 	wg.Done()
 }
 
+const (
+	AdminSpec = "geist-adminevents-inmem"
+	RegSpec   = "geist-specs"
+	TestSpec1 = "geist-test1"
+	TestSpec2 = "geist-test2"
+)
+
 func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing.T) {
 
 	var id1, id2, eventId string
@@ -139,32 +146,32 @@ func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing
 
 	// Test initial metrics
 	expectedMetrics := map[string]entity.Metrics{
-		"geist-adminevents-inmem": {EventsProcessed: 0, EventsStoredInSink: 0},
-		"geist-specs":             {EventsProcessed: 0, EventsStoredInSink: 0},
+		AdminSpec: {EventsProcessed: 0, EventsStoredInSink: 0},
+		RegSpec:   {EventsProcessed: 0, EventsStoredInSink: 0},
 	}
 	assert.Equal(t, expectedMetrics, geist.Metrics())
 
 	// Test register valid specs
 	id1, err = geist.RegisterStream(ctx, testSpec1)
 	assert.NoError(t, err)
-	assert.Equal(t, "geist-test1", id1)
+	assert.Equal(t, TestSpec1, id1)
 	time.Sleep(2 * time.Second)
 	expectedMetrics = map[string]entity.Metrics{
-		"geist-adminevents-inmem": {EventsProcessed: 1, EventsStoredInSink: 1},
-		"geist-specs":             {EventsProcessed: 1, EventsStoredInSink: 1},
-		"geist-test1":             {EventsProcessed: 0, EventsStoredInSink: 0},
+		AdminSpec: {EventsProcessed: 1, EventsStoredInSink: 1},
+		RegSpec:   {EventsProcessed: 1, EventsStoredInSink: 1},
+		TestSpec1: {EventsProcessed: 0, EventsStoredInSink: 0},
 	}
 	assert.Equal(t, expectedMetrics, geist.Metrics())
 
 	id2, err = geist.RegisterStream(ctx, testSpec2)
 	assert.NoError(t, err)
-	assert.Equal(t, "geist-test2", id2)
+	assert.Equal(t, TestSpec2, id2)
 	time.Sleep(time.Second)
 	expectedMetrics = map[string]entity.Metrics{
-		"geist-adminevents-inmem": {EventsProcessed: 2, EventsStoredInSink: 2},
-		"geist-specs":             {EventsProcessed: 2, EventsStoredInSink: 2},
-		"geist-test1":             {EventsProcessed: 0, EventsStoredInSink: 0},
-		"geist-test2":             {EventsProcessed: 0, EventsStoredInSink: 0},
+		AdminSpec: {EventsProcessed: 2, EventsStoredInSink: 2},
+		RegSpec:   {EventsProcessed: 2, EventsStoredInSink: 2},
+		TestSpec1: {EventsProcessed: 0, EventsStoredInSink: 0},
+		TestSpec2: {EventsProcessed: 0, EventsStoredInSink: 0},
 	}
 	assert.Equal(t, expectedMetrics, geist.Metrics())
 
@@ -174,7 +181,7 @@ func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing
 	assert.Equal(t, 2, len(specs))
 	assert.Equal(t, expectedMetrics, geist.Metrics())
 
-	specBytesOut, err := geist.GetStreamSpec("geist-test1")
+	specBytesOut, err := geist.GetStreamSpec(TestSpec1)
 	assert.NoError(t, err)
 	spec, err := entity.NewSpec(testSpec1)
 	assert.NoError(t, err)
@@ -191,7 +198,7 @@ func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing
 	// Validate proper spec
 	specId, err := geist.ValidateStreamSpec(testSpec2)
 	assert.NoError(t, err)
-	assert.Equal(t, "geist-test2", specId)
+	assert.Equal(t, TestSpec2, specId)
 
 	// Validate incorrect spec
 	specId, err = geist.ValidateStreamSpec([]byte(`{ "spec": "nope, not a valid spec"}`))
@@ -207,15 +214,15 @@ func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing
 	assert.Equal(t, "<noResourceId>", eventId)
 	assert.NoError(t, err)
 	expectedMetrics = map[string]entity.Metrics{
-		"geist-adminevents-inmem": {EventsProcessed: 2, EventsStoredInSink: 2},
-		"geist-specs":             {EventsProcessed: 2, EventsStoredInSink: 2},
-		"geist-test1":             {EventsProcessed: 1, EventsStoredInSink: 1},
-		"geist-test2":             {EventsProcessed: 1, EventsStoredInSink: 1},
+		AdminSpec: {EventsProcessed: 2, EventsStoredInSink: 2},
+		RegSpec:   {EventsProcessed: 2, EventsStoredInSink: 2},
+		TestSpec1: {EventsProcessed: 1, EventsStoredInSink: 1},
+		TestSpec2: {EventsProcessed: 1, EventsStoredInSink: 1},
 	}
 	assert.Equal(t, expectedMetrics, geist.Metrics())
 
 	// Test Publish directly on to Registry stream not allowed
-	regStreamId := "geist-specs"
+	regStreamId := RegSpec
 	eventId, err = geist.Publish(ctx, regStreamId, event)
 	assert.Empty(t, eventId)
 	assert.Equal(t, err, ErrCodeInvalidSpecRegOp)
@@ -229,10 +236,10 @@ func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing
 	assert.NoError(t, err)
 
 	expectedMetrics = map[string]entity.Metrics{
-		"geist-adminevents-inmem": {EventsProcessed: 2, EventsStoredInSink: 2},
-		"geist-specs":             {EventsProcessed: 2, EventsStoredInSink: 2},
-		"geist-test1":             {EventsProcessed: 1, EventsStoredInSink: 1},
-		"geist-test2":             {EventsProcessed: 1, EventsStoredInSink: 1},
+		AdminSpec: {EventsProcessed: 2, EventsStoredInSink: 2},
+		RegSpec:   {EventsProcessed: 2, EventsStoredInSink: 2},
+		TestSpec1: {EventsProcessed: 1, EventsStoredInSink: 1},
+		TestSpec2: {EventsProcessed: 1, EventsStoredInSink: 1},
 	}
 	assert.Equal(t, expectedMetrics, geist.Metrics())
 	wg.Done()

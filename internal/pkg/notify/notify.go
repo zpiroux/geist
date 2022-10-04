@@ -64,15 +64,16 @@ func (n *Notifier) Notify(level int, message string, args ...any) {
 		streamSuffix = ")"
 	}
 
+	const fmtstr = "[%s:%s]%s%s%s %s"
 	switch level {
 	case entity.NotifyLevelDebug:
-		n.log.Debugf("[%s:%s]%s%s%s %s", n.sender, n.instance, streamPrefix, n.stream, streamSuffix, msg)
+		n.log.Debugf(fmtstr, n.sender, n.instance, streamPrefix, n.stream, streamSuffix, msg)
 	case entity.NotifyLevelInfo:
-		n.log.Infof("[%s:%s]%s%s%s %s", n.sender, n.instance, streamPrefix, n.stream, streamSuffix, msg)
+		n.log.Infof(fmtstr, n.sender, n.instance, streamPrefix, n.stream, streamSuffix, msg)
 	case entity.NotifyLevelWarn:
-		n.log.Warnf("[%s:%s]%s%s%s %s", n.sender, n.instance, streamPrefix, n.stream, streamSuffix, msg)
+		n.log.Warnf(fmtstr, n.sender, n.instance, streamPrefix, n.stream, streamSuffix, msg)
 	case entity.NotifyLevelError:
-		n.log.Errorf("[%s:%s]%s%s%s %s", n.sender, n.instance, streamPrefix, n.stream, streamSuffix, msg)
+		n.log.Errorf(fmtstr, n.sender, n.instance, streamPrefix, n.stream, streamSuffix, msg)
 	}
 }
 
