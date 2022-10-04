@@ -6,16 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/teltech/logger"
 	"github.com/zpiroux/geist/entity"
 	"github.com/zpiroux/geist/internal/pkg/admin"
 )
-
-var log *logger.Log
-
-func init() {
-	log = logger.New()
-}
 
 const sourceTypeId = "geistapi"
 
@@ -30,8 +23,8 @@ func (lf *ExtractorFactory) SourceId() string {
 	return sourceTypeId
 }
 
-func (lf *ExtractorFactory) NewExtractor(ctx context.Context, spec *entity.Spec, id string) (entity.Extractor, error) {
-	return newExtractor(spec.Id(), id)
+func (lf *ExtractorFactory) NewExtractor(ctx context.Context, c entity.Config) (entity.Extractor, error) {
+	return newExtractor(c), nil
 }
 
 func (lf *ExtractorFactory) Close() error {
@@ -39,23 +32,15 @@ func (lf *ExtractorFactory) Close() error {
 }
 
 type extractor struct {
-	id         string
-	specId     string
+	c          entity.Config
 	sourceChan admin.EventChannel
 }
 
-func newExtractor(specId string, id string) (*extractor, error) {
-
-	var (
-		err       error
-		extractor extractor
-	)
-	extractor.id = id
-	extractor.specId = specId
-	extractor.sourceChan = make(admin.EventChannel)
-
-	log.Debugf(extractor.lgprfx()+"Newextractor with specId: %+v", specId)
-	return &extractor, err
+func newExtractor(c entity.Config) *extractor {
+	return &extractor{
+		c:          c,
+		sourceChan: make(admin.EventChannel),
+	}
 }
 
 func (e *extractor) StreamExtract(
@@ -64,16 +49,12 @@ func (e *extractor) StreamExtract(
 	err *error,
 	retryable *bool) {
 
-	log.Debugf(e.lgprfx() + "Starting up StreamExtract")
-
 	var event admin.ChanEvent
 
 	for {
 		select {
 
 		case <-ctx.Done():
-			*err = ctx.Err()
-			log.Infof(e.lgprfx()+"ctx closed, ctx.Err: %v", *err)
 			return
 
 		case event = <-e.sourceChan:
@@ -91,16 +72,13 @@ func (e *extractor) StreamExtract(
 				Success: success,
 				Error:   result.Error,
 			}
-			log.Debugf(e.lgprfx()+"Sending back result %+v to caller", extResult)
 
 			event.ResultChannel <- extResult
-
 			close(event.ResultChannel)
 		}
 	}
 }
 
-// TODO: Change eventData to []byte
 func (e *extractor) SendToSource(ctx context.Context, eventData any) (string, error) {
 
 	resultChan := make(chan admin.ResultChanEvent)
@@ -114,10 +92,7 @@ func (e *extractor) SendToSource(ctx context.Context, eventData any) (string, er
 	}
 
 	e.sourceChan <- event
-	log.Debugf(e.lgprfx()+"Event sent in extractor with spec: %+v", e.specId)
-
 	result := <-resultChan
-	log.Debugf(e.lgprfx()+"Result received, result: %+v", result)
 
 	return e.adjustToExternalErrors(result)
 }
@@ -139,12 +114,8 @@ func (e *extractor) adjustToExternalErrors(result admin.ResultChanEvent) (string
 		if result.Error == nil {
 			// This should never (tm) happen, unless some weird unknown anomaly occurs.
 			// But if it does happen, it will be handled correctly by applying an error explicitly, like below.
-			result.Error = fmt.Errorf("unexpected error trying to send event to channel extractor (%+v)", e.specId)
+			result.Error = fmt.Errorf("unexpected error trying to send event to channel extractor (streamId: %s)", e.c.Spec.Id())
 		}
 	}
 	return result.Id, result.Error
-}
-
-func (e *extractor) lgprfx() string {
-	return "[channel.extractor:" + e.id + "] "
 }

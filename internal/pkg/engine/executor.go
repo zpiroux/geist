@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/teltech/logger"
 	"github.com/zpiroux/geist/entity"
 	"github.com/zpiroux/geist/internal/pkg/igeist"
+	"github.com/zpiroux/geist/internal/pkg/notify"
 )
 
 const (
@@ -33,9 +33,14 @@ type Executor struct {
 	ctx                context.Context    // Child ctx for shutting down Extractor
 	cancel             context.CancelFunc // CancelFunc for shutting down Extractor
 	id                 string
-	log                *logger.Log // log not thread safe so can't share unmutexed log across subroutines
-	shutdownInProgress bool        // TODO: not important but add mutex on this
-	events             int64       // nb events processed
+	notifier           *notify.Notifier
+	shutdownInProgress bool // TODO: not important but add mutex on this
+
+	// Number of events processed. Although we could use uint64 here, we can still have
+	// each executor running almost 3 million years (assuming 100000 events/second) using
+	// int64, before overflowing, so should be enough :)
+	eventsProcessed    int64
+	eventsStoredInSink int64
 }
 
 func NewExecutor(config Config, stream igeist.Stream) *Executor {
@@ -44,7 +49,6 @@ func NewExecutor(config Config, stream igeist.Stream) *Executor {
 		config: config,
 		stream: stream,
 		id:     stream.Instance(),
-		log:    logger.New(),
 	}
 	if e.config.EventLogInterval == 0 {
 		e.config.EventLogInterval = defaultEventLogInterval
@@ -52,6 +56,13 @@ func NewExecutor(config Config, stream igeist.Stream) *Executor {
 	if e.config.MaxStreamRetryIntervalSec == 0 {
 		e.config.MaxStreamRetryIntervalSec = defaultMaxStreamRetryIntervalSec
 	}
+
+	var log *logger.Log
+	if config.Log {
+		log = logger.New()
+	}
+	e.notifier = notify.New(config.NotifyChan, log, 2, "executor", e.id, e.StreamId())
+
 	if e.valid() {
 		return e
 	}
@@ -76,6 +87,13 @@ func (e *Executor) Stream() igeist.Stream {
 	return e.stream
 }
 
+func (e *Executor) Metrics() entity.Metrics {
+	return entity.Metrics{
+		EventsProcessed:    e.eventsProcessed,
+		EventsStoredInSink: e.eventsStoredInSink,
+	}
+}
+
 func (e *Executor) Run(ctx context.Context, wg *sync.WaitGroup) {
 	var (
 		err       error
@@ -84,7 +102,7 @@ func (e *Executor) Run(ctx context.Context, wg *sync.WaitGroup) {
 
 	e.ctx, e.cancel = context.WithCancel(ctx)
 	defer e.runExit(wg)
-	e.log.Info(e.lgprfx() + "Starting up")
+	e.notifier.Notify(entity.NotifyLevelInfo, "Starting up")
 
 	// Infinite retries with exponential backoff interval, for max self-healing when having retryable errors.
 	// For unretryable errors it depends on the stream's config value Ops.HandlingOfUnretryableEvents.
@@ -97,9 +115,9 @@ func (e *Executor) Run(ctx context.Context, wg *sync.WaitGroup) {
 		e.stream.Extractor().StreamExtract(e.ctx, e.ProcessEvent, &err, &retryable)
 
 		if err != nil && ctx.Err() != context.Canceled {
-			e.log.Errorf(e.lgprfx()+"StreamExtract returned with error: %s, retryable: %v", err.Error(), retryable)
+			e.notifier.Notify(entity.NotifyLevelError, "StreamExtract returned with error: %s, retryable: %v", err.Error(), retryable)
 			if retryable {
-				e.log.Warnf(e.lgprfx()+"stream restart (#%d) in %d seconds", i, backoffDuration)
+				e.notifier.Notify(entity.NotifyLevelWarn, "stream restart (#%d) in %d seconds", i, backoffDuration)
 				if !sleepCtx(ctx, time.Duration(backoffDuration)*time.Second) {
 					break
 				}
@@ -112,13 +130,13 @@ func (e *Executor) Run(ctx context.Context, wg *sync.WaitGroup) {
 		break
 	}
 
-	e.log.Infof(e.lgprfx()+"finished. Events processed: %d", e.events)
+	e.notifier.Notify(entity.NotifyLevelInfo, "finished. Events processed: %d, stored in sink: %d", e.eventsProcessed, e.eventsStoredInSink)
 }
 
 func (e *Executor) runExit(wg *sync.WaitGroup) {
 	// Protection against badly written extractor/source plugins
 	if r := recover(); r != nil {
-		e.log.Errorf(e.lgprfx()+"panic (%v) in StreamExtract() for spec %s, terminating stream", r, e.stream.Spec().JSON())
+		e.notifier.Notify(entity.NotifyLevelError, "panic (%v) in StreamExtract() for spec %s, terminating stream", r, e.stream.Spec().JSON())
 	}
 	wg.Done()
 }
@@ -140,16 +158,16 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 	defer e.processEventExit()
 
 	if e.shutdownInProgress {
-		e.log.Warnf("rejecting event processing due to shutdown in progress, rejected events: %v", events)
+		e.notifier.Notify(entity.NotifyLevelWarn, "rejecting event processing due to shutdown in progress, rejected events: %v", events)
 		result.Error = nil
 		result.Status = entity.ExecutorStatusShutdown
 		return result
 	}
 
 	for _, event := range events {
-		atomic.AddInt64(&e.events, 1)
-		if e.events%int64(e.config.EventLogInterval) == 0 {
-			e.log.Infof(e.lgprfx()+"[metric] nb events processed: %d", e.events)
+		e.eventsProcessed++
+		if e.eventsProcessed%int64(e.config.EventLogInterval) == 0 {
+			e.notifier.Notify(entity.NotifyLevelInfo, "[metric] nb events processed: %d, stored in sink: %d", e.eventsProcessed, e.eventsStoredInSink)
 		}
 
 		// Apply injection of stream processing logic if requested
@@ -188,7 +206,7 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 			return result
 		}
 		if e.logEventData() {
-			e.log.Debugf(e.lgprfx()+"event transformed into: %v", transEvent)
+			e.notifier.Notify(entity.NotifyLevelDebug, "event transformed into: %v", transEvent)
 		}
 
 		transformed = append(transformed, transEvent...)
@@ -212,6 +230,7 @@ func (e *Executor) loadToSink(ctx context.Context, transformed []*entity.Transfo
 		result.ResourceId, result.Error, result.Retryable = e.stream.Loader().StreamLoad(ctx, transformed)
 
 		if result.Error == nil {
+			e.eventsStoredInSink += int64(len(transformed))
 			result.Status = entity.ExecutorStatusSuccessful
 			break
 		}
@@ -222,11 +241,12 @@ func (e *Executor) loadToSink(ctx context.Context, transformed []*entity.Transfo
 		}
 
 		if result.Retryable && loadAttempts < e.maxRetryAttempts() {
-			e.log.Warnf(e.lgprfx()+"StreamLoad() failed with error: %v, issuing retry attempt #%d, in %d seconds", result.Error, loadAttempts+1, backoffDuration)
+
+			e.notifier.Notify(entity.NotifyLevelWarn, "StreamLoad() failed with error: %v, issuing retry attempt #%d, in %d seconds", result.Error, loadAttempts+1, backoffDuration)
 			if !sleepCtx(ctx, time.Duration(backoffDuration)*time.Second) {
 				break
 			}
-			e.log.Infof(e.lgprfx()+"issuing retry attempt #%d, after backoff %d seconds", loadAttempts+1, backoffDuration)
+			e.notifier.Notify(entity.NotifyLevelInfo, "issuing retry attempt #%d, after backoff %d seconds", loadAttempts+1, backoffDuration)
 			backoffDuration = 2 * backoffDuration
 			continue
 		} else {
@@ -237,7 +257,7 @@ func (e *Executor) loadToSink(ctx context.Context, transformed []*entity.Transfo
 	}
 
 	if result.Error != nil && result.Retryable {
-		e.log.Errorf(e.lgprfx()+"giving up retrying load to sink for spec ID %s, after %d attempts, transformed event(s): %+v", e.StreamId(), loadAttempts, transformed)
+		e.notifier.Notify(entity.NotifyLevelError, "giving up retrying load to sink for spec ID %s, after %d attempts, transformed event(s): %+v", e.StreamId(), loadAttempts, transformed)
 		result.Status = entity.ExecutorStatusRetriesExhausted
 		// From here, it's up to each extractor to handle DLQ logic
 	}
@@ -247,12 +267,12 @@ func (e *Executor) loadToSink(ctx context.Context, transformed []*entity.Transfo
 
 func (e *Executor) shuttingDown(ctx context.Context, result entity.EventProcessingResult) bool {
 	if ctx.Err() == context.Canceled {
-		e.log.Infof(e.lgprfx()+"context canceled during StreamLoad, err: %v", result.Error)
+		e.notifier.Notify(entity.NotifyLevelInfo, "context canceled during StreamLoad, err: %v", result.Error)
 		return true
 	}
 
 	if result.Error == entity.ErrEntityShutdownRequested {
-		e.log.Infof(e.lgprfx() + "loader requested shutdown during StreamLoad")
+		e.notifier.Notify(entity.NotifyLevelInfo, "loader requested shutdown during StreamLoad")
 		return true
 	}
 	return false
@@ -261,19 +281,19 @@ func (e *Executor) shuttingDown(ctx context.Context, result entity.EventProcessi
 func (e *Executor) processEventExit() {
 	// Protection against badly written loader/sink plugins or external hook logic
 	if r := recover(); r != nil {
-		e.log.Errorf(e.lgprfx()+"panic (%v) in ProcessEvent() for spec %s", r, e.stream.Spec().JSON())
+		e.notifier.Notify(entity.NotifyLevelError, "panic (%v) in ProcessEvent() for spec %s", r, e.stream.Spec().JSON())
 	}
 }
 
 func (e *Executor) Shutdown() {
 	e.shutdownInProgress = true // TODO: protect with mutex (not urgent)
-	e.log.Info(e.lgprfx() + "Shutting down")
+	e.notifier.Notify(entity.NotifyLevelInfo, "Shutting down")
 
 	// Shut down Extractor
 	if e.cancel != nil {
 		e.cancel()
 	} else {
-		e.log.Warn(e.lgprfx() + "Shutdown request received before started running")
+		e.notifier.Notify(entity.NotifyLevelWarn, "Shutdown request received before started running")
 	}
 
 	e.stream.Loader().Shutdown()
@@ -285,8 +305,4 @@ func (e *Executor) maxRetryAttempts() int {
 
 func (e *Executor) logEventData() bool {
 	return e.stream.Spec().(*entity.Spec).Ops.LogEventData
-}
-
-func (e *Executor) lgprfx() string {
-	return "[executor:" + e.id + "](stream: " + e.StreamId() + ") "
 }

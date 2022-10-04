@@ -76,8 +76,7 @@ func newTestExtractor(t *testing.T, specBytes []byte) *extractor {
 	spec, err := entity.NewSpec(specBytes)
 	assert.NoError(t, err)
 
-	extractor, err := newExtractor(spec.Id(), "instanceId")
-	assert.NoError(t, err)
+	extractor := newExtractor(entity.Config{Spec: spec, ID: "instanceId"})
 	assert.NotNil(t, extractor)
 
 	return extractor
@@ -89,8 +88,7 @@ func newTestExtractorFromFile(t *testing.T, specId string) *extractor {
 	assert.NoError(t, err)
 	assert.NotNil(t, spec)
 
-	extractor, err := newExtractor(spec.Id(), "instanceId")
-	assert.NoError(t, err)
+	extractor := newExtractor(entity.Config{Spec: spec, ID: "instanceId"})
 	assert.NotNil(t, extractor)
 
 	return extractor

@@ -11,6 +11,7 @@ import (
 type Executor interface {
 	Stream() Stream
 	StreamId() string
+	Metrics() entity.Metrics
 	Run(ctx context.Context, wg *sync.WaitGroup)
 
 	// ProcessEvent returns the processed/persisted event's event/resource ID, together with error, retryable.

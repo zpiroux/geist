@@ -12,6 +12,8 @@ import (
 	"github.com/zpiroux/geist/internal/pkg/registry"
 )
 
+const defaultNotifyChanSize = 64
+
 func (s *Service) initConfig(config Config) error {
 	var err error
 	s.config = config
@@ -45,6 +47,15 @@ func (s *Service) initConfig(config Config) error {
 	if err != nil {
 		err = fmt.Errorf("could not create Stream Spec for Admin events, error: %s", err)
 	}
+
+	// Set up the notification channel
+	if config.NotifyChanSize <= 0 {
+		config.NotifyChanSize = defaultNotifyChanSize
+	}
+	s.config.Engine.NotifyChan = make(entity.NotifyChan, config.NotifyChanSize)
+	s.config.Entity.NotifyChan = s.config.Engine.NotifyChan
+	s.config.Entity.Log = s.config.Engine.Log
+
 	return err
 }
 
@@ -61,7 +72,7 @@ func (s *Service) initRegistry(ctx context.Context) error {
 		return err
 	}
 	regExecutor := engine.NewExecutor(s.config.Engine, stream)
-	registry := registry.NewStreamRegistry(s.config.Registry, regExecutor)
+	registry := registry.NewStreamRegistry(s.config.Registry, regExecutor, s.config.Engine.NotifyChan, s.config.Engine.Log)
 
 	if err := registry.Fetch(ctx); err != nil {
 		return errors.New("error fetching registry data: " + err.Error())

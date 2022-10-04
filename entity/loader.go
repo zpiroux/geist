@@ -14,12 +14,12 @@ type LoaderFactory interface {
 	SinkId() string
 
 	// NewLoader creates a new loader entity
-	NewLoader(ctx context.Context, spec *Spec, id string) (Loader, error)
+	NewLoader(ctx context.Context, c Config) (Loader, error)
 
 	// NewSinkExtractor creates an extractor to enable retrieving data from the sink
 	// as written by the loader.
 	// This functionality is optional and if not implemented the function should return nil, nil.
-	NewSinkExtractor(ctx context.Context, spec *Spec, id string) (Extractor, error)
+	NewSinkExtractor(ctx context.Context, c Config) (Extractor, error)
 
 	// Close is called by Geist after using Geist API geist.Shutdown()
 	Close() error

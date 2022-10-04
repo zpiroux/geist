@@ -52,7 +52,7 @@ func (s *StreamEntityFactory) CreateExtractor(ctx context.Context, etlSpec igeis
 
 	case entity.EntityGeistApi:
 		// In real StreamEntityFactory the channel extractory factory is only created once
-		return channel.NewExtractorFactory().NewExtractor(ctx, spec, "instanceId")
+		return channel.NewExtractorFactory().NewExtractor(ctx, entity.Config{Spec: spec, ID: "instanceId"})
 
 	default:
 		return nil, fmt.Errorf("source type '%s' not implemented", spec.Source.Type)
@@ -100,7 +100,7 @@ func (s *StreamEntityFactory) CreateLoader(ctx context.Context, etlSpec igeist.S
 		return NewMockLoader(), nil
 
 	case entity.EntityVoid:
-		return void.NewLoaderFactory().NewLoader(ctx, spec, instanceId)
+		return void.NewLoaderFactory().NewLoader(ctx, entity.Config{Spec: spec, ID: instanceId})
 
 	case entity.EntityAdmin:
 		return s.adminLoader, nil

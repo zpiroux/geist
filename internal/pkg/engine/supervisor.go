@@ -11,13 +11,8 @@ import (
 	"github.com/zpiroux/geist/entity"
 	"github.com/zpiroux/geist/internal/pkg/admin"
 	"github.com/zpiroux/geist/internal/pkg/igeist"
+	"github.com/zpiroux/geist/internal/pkg/notify"
 )
-
-var log *logger.Log
-
-func init() {
-	log = logger.New()
-}
 
 // Supervisor is responsible for high-level lifecycle management of Geist streams. It initializes and starts up one
 // or more Executor(s) per Stream Spec, in its own goroutine. Each Executor is given a newly created Stream entity
@@ -30,6 +25,7 @@ type Supervisor struct {
 	archivist     *executorArchivist
 	wgExecutors   sync.WaitGroup
 	instanceId    string
+	notifier      *notify.Notifier
 }
 
 // Supervisor expects the provided registry to be initialized with cached specs
@@ -51,6 +47,12 @@ func NewSupervisor(
 		id:         supervisor.instanceId,
 	}
 
+	var log *logger.Log
+	if config.Log {
+		log = logger.New()
+	}
+	supervisor.notifier = notify.New(config.NotifyChan, log, 2, "supervisor", supervisor.instanceId, "")
+
 	supervisor.setRegistry(ctx, registry)
 
 	return supervisor, nil
@@ -66,7 +68,7 @@ func (s *Supervisor) Init(ctx context.Context) error {
 
 		spec := sp.(*entity.Spec)
 		if spec.IsDisabled() {
-			log.Infof(s.lgprfx()+"stream %s is disabled and will not be assigned to an executor", spec.Id())
+			s.notifier.Notify(entity.NotifyLevelInfo, "stream %s is disabled and will not be assigned to an executor", spec.Id())
 			continue
 		}
 
@@ -86,6 +88,8 @@ func (s *Supervisor) Registry() igeist.StreamRegistry {
 // Run is the main entry point for GEIST execution of all streams
 func (s *Supervisor) Run(ctx context.Context, ready *sync.WaitGroup) error {
 
+	s.notifier.Notify(entity.NotifyLevelInfo, "starting up with config: %+v", s.config)
+
 	var nbExecutorsDeployed int
 	executorMap := s.archivist.GrantExclusiveAccess()
 	for _, executors := range *executorMap {
@@ -94,14 +98,15 @@ func (s *Supervisor) Run(ctx context.Context, ready *sync.WaitGroup) error {
 			nbExecutorsDeployed++
 		}
 	}
-	log.Infof(s.lgprfx()+"%d executors deployed", nbExecutorsDeployed)
+	s.notifier.Notify(entity.NotifyLevelInfo, "%d executors deployed", nbExecutorsDeployed)
 	s.archivist.RevokeExclusiveAccess()
 
 	// Everything is up and running, including all previously registered streams.
 	ready.Done()
+
 	// Wait for all stream executors to finish operations
 	s.wgExecutors.Wait()
-	log.Info(s.lgprfx() + "All Executors finished operations. Supervisor shutting down.")
+	s.notifier.Notify(entity.NotifyLevelInfo, "All Executors finished operations. Supervisor shutting down.")
 	return nil
 }
 
@@ -110,17 +115,30 @@ func (s *Supervisor) deployExecutor(ctx context.Context, executor igeist.Executo
 	go executor.Run(ctx, &s.wgExecutors)
 }
 
-// Shutdown is called by the service during shutdown
-func (s *Supervisor) Shutdown(err error) {
+func (s *Supervisor) Metrics() map[string]entity.Metrics {
 
-	var reason string
+	var metricsPerStream entity.Metrics
+	metrics := make(map[string]entity.Metrics)
 
-	if err == nil {
-		reason = "upgrade, client request or similar (no error)"
-	} else {
-		reason = err.Error()
+	executorMap := s.archivist.GrantExclusiveAccess()
+	defer s.archivist.RevokeExclusiveAccess()
+
+	for streamId, executors := range *executorMap {
+
+		metricsPerStream.Reset()
+		for _, executor := range executors {
+			m := executor.Metrics()
+			metricsPerStream.EventsProcessed += m.EventsProcessed
+			metricsPerStream.EventsStoredInSink += m.EventsStoredInSink
+		}
+		metrics[streamId] = metricsPerStream
 	}
-	log.Infof(s.lgprfx()+"Shutting down. Reason: '%v'", reason)
+	return metrics
+}
+
+// Shutdown is called by the service during shutdown
+func (s *Supervisor) Shutdown() {
+	s.notifier.Notify(entity.NotifyLevelInfo, "Shutting down")
 }
 
 // Stream returns the first (main) stream instance for a stream id, for use with getting stream spec
@@ -153,7 +171,6 @@ func (s *Supervisor) createStreams(ctx context.Context, spec *entity.Spec) error
 
 		stream, err := s.streamBuilder.Build(ctx, spec)
 		if err != nil {
-			log.Errorf(s.lgprfx()+"could not build stream from spec: %+v", spec)
 			return err
 		}
 
@@ -161,7 +178,7 @@ func (s *Supervisor) createStreams(ctx context.Context, spec *entity.Spec) error
 		if executor == nil {
 			return fmt.Errorf(s.lgprfx()+"could not create executor #%d for stream: %#v", instance, spec.Id())
 		}
-		log.Infof(s.lgprfx()+"Created executor #%d with ID: [%s], for spec with ID: %s", instance, stream.Instance(), spec.Id())
+		s.notifier.Notify(entity.NotifyLevelInfo, "Created executor #%d with ID: [%s], for spec with ID: %s", instance, stream.Instance(), spec.Id())
 
 		executors := (*executorMap)[executor.StreamId()]
 		executors = append(executors, executor)
@@ -181,7 +198,7 @@ func (s *Supervisor) shutdownStream(ctx context.Context, streamId string) {
 		}
 		delete(*executors, streamId)
 	} else {
-		log.Warnf("shutdownStream called for streamId %s but stream did not exist", streamId)
+		s.notifier.Notify(entity.NotifyLevelWarn, "shutdownStream called for streamId %s but stream did not exist", streamId)
 	}
 }
 
@@ -227,7 +244,7 @@ func (s *Supervisor) handleStreamRegistryModified(ctx context.Context, event adm
 
 		streamSpec := spec.(*entity.Spec)
 		if streamSpec.IsDisabled() {
-			log.Infof(s.lgprfx()+"New spec version is disabled for streamId '%s', just shutting down old one", streamSpec.Id())
+			s.notifier.Notify(entity.NotifyLevelInfo, "New spec version is disabled for streamId '%s', just shutting down old one", streamSpec.Id())
 			s.shutdownStream(ctx, streamSpec.Id())
 		} else {
 
@@ -270,10 +287,6 @@ type AdminEventHandler struct {
 }
 
 func (a *AdminEventHandler) StreamLoad(ctx context.Context, data []*entity.Transformed) (string, error, bool) {
-
-	for _, transformed := range data {
-		log.Debugf(a.lgprfx()+"Received transformed event in AdminEventHandler.StreamLoad(): %s", transformed.String())
-	}
 
 	if len(data[0].Data) == 0 {
 		return "", errors.New(a.lgprfx() + "StreamLoad called without data to load"), false

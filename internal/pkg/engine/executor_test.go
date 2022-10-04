@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -66,7 +67,16 @@ func TestExecutorHookLogic(t *testing.T) {
 		nil,
 	)
 
-	executor := NewExecutor(Config{PreTransformHookFunc: preTransformHookFunc}, stream)
+	notifyChan := make(entity.NotifyChan, 128)
+	go handleNotificationEvents(notifyChan)
+	time.Sleep(time.Second)
+	config := Config{
+		PreTransformHookFunc: preTransformHookFunc,
+		NotifyChan:           notifyChan,
+	}
+
+	executor := NewExecutor(config, stream)
+	assert.Equal(t, entity.Metrics{}, executor.Metrics())
 
 	// Normal flow, no enrichment
 	event := HookFuncEvent{TestType: "continue"}
@@ -76,6 +86,7 @@ func TestExecutorHookLogic(t *testing.T) {
 	assert.Equal(t, properResourceId, result.ResourceId)
 	assert.Equal(t, 1, streamLoadAttempts)
 	assert.Equal(t, entity.ExecutorStatusSuccessful, result.Status)
+	assert.Equal(t, entity.Metrics{EventsProcessed: 1, EventsStoredInSink: 1}, executor.Metrics())
 
 	// Normal flow, with enrichment (event field modification)
 	event = HookFuncEvent{TestType: "enrichAndContinue", SomeInputValue: "foo"}
@@ -90,6 +101,7 @@ func TestExecutorHookLogic(t *testing.T) {
 	err = json.Unmarshal(eventStoredInSink.([]byte), &event)
 	assert.NoError(t, err)
 	assert.Equal(t, "foo + myEnrichedValue", event.SomeInputValue)
+	assert.Equal(t, entity.Metrics{EventsProcessed: 2, EventsStoredInSink: 2}, executor.Metrics())
 
 	// Normal flow, with enrichment (adding a new field)
 	event = HookFuncEvent{TestType: "enrichAndContinue2", SomeInputValue: "bar"}
@@ -103,6 +115,7 @@ func TestExecutorHookLogic(t *testing.T) {
 	eventStoredInSink = loader.Data[0].Data["originalEventData"]
 	expectedEnrichedEventInSink := "{\"TestType\":\"enrichAndContinue2\",\"SomeInputValue\":\"bar\",\"myInjectedField\":\"coolValue\"}"
 	assert.Equal(t, expectedEnrichedEventInSink, string(eventStoredInSink.([]byte)))
+	assert.Equal(t, entity.Metrics{EventsProcessed: 3, EventsStoredInSink: 3}, executor.Metrics())
 
 	// HookFunc decides event to be skipped
 	event.TestType = "skip"
@@ -112,6 +125,7 @@ func TestExecutorHookLogic(t *testing.T) {
 	assert.Equal(t, "", result.ResourceId)
 	assert.Equal(t, 0, streamLoadAttempts)
 	assert.Equal(t, entity.ExecutorStatusSuccessful, result.Status)
+	assert.Equal(t, entity.Metrics{EventsProcessed: 4, EventsStoredInSink: 3}, executor.Metrics())
 
 	// HookFunc decides it want to report back an unretryable error
 	event.TestType = "unretryableError"
@@ -122,6 +136,7 @@ func TestExecutorHookLogic(t *testing.T) {
 	assert.Equal(t, 0, streamLoadAttempts)
 	assert.Equal(t, entity.ExecutorStatusError, result.Status)
 	assert.False(t, result.Retryable)
+	assert.Equal(t, entity.Metrics{EventsProcessed: 5, EventsStoredInSink: 3}, executor.Metrics())
 
 	// HookFunc decides the stream should be terminated
 	event.TestType = "shutdown"
@@ -132,6 +147,7 @@ func TestExecutorHookLogic(t *testing.T) {
 	assert.Equal(t, 0, streamLoadAttempts)
 	assert.Equal(t, entity.ExecutorStatusShutdown, result.Status)
 	assert.False(t, result.Retryable)
+	assert.Equal(t, entity.Metrics{EventsProcessed: 6, EventsStoredInSink: 3}, executor.Metrics())
 
 	// HookFunc has a bug and returns invalid action value
 	event.TestType = "invalidReturnValue"
@@ -143,6 +159,7 @@ func TestExecutorHookLogic(t *testing.T) {
 	assert.Equal(t, 0, streamLoadAttempts)
 	assert.Equal(t, entity.ExecutorStatusError, result.Status)
 	assert.False(t, result.Retryable)
+	assert.Equal(t, entity.Metrics{EventsProcessed: 7, EventsStoredInSink: 3}, executor.Metrics())
 
 	// Check received stream ID
 	event.TestType = "enrichWithStreamId"
@@ -155,8 +172,17 @@ func TestExecutorHookLogic(t *testing.T) {
 	err = json.Unmarshal(eventStoredInSink.([]byte), &event)
 	assert.NoError(t, err)
 	assert.Equal(t, spec.Id(), event.SomeInputValue)
+	assert.Equal(t, entity.Metrics{EventsProcessed: 8, EventsStoredInSink: 4}, executor.Metrics())
 
 	streamLoadAttempts = 0
+
+	time.Sleep(2 * time.Second)
+}
+
+func handleNotificationEvents(notifyChan entity.NotifyChan) {
+	for event := range notifyChan {
+		fmt.Printf("%+v\n", event)
+	}
 }
 
 func newHookEvent(he HookFuncEvent) []entity.Event {
@@ -230,7 +256,14 @@ func TestExecutorConnectorResilience(t *testing.T) {
 		&MockLoader_NoError{},
 		nil,
 	)
-	executor := NewExecutor(Config{}, stream)
+	cfg := Config{
+		NotifyChan: make(entity.NotifyChan, 6),
+		Log:        false,
+	}
+	go handleNotificationEvents(cfg.NotifyChan)
+	time.Sleep(time.Second)
+
+	executor := NewExecutor(cfg, stream)
 	assert.NotNil(t, executor)
 
 	var wg sync.WaitGroup
@@ -241,6 +274,9 @@ func TestExecutorConnectorResilience(t *testing.T) {
 	// Loader/Sink resilience
 	stream.loader = &PanickingMockLoader{}
 	_ = executor.ProcessEvent(context.Background(), tinyTestEvent(time.Now()))
+	assert.Equal(t, entity.Metrics{EventsProcessed: 1, EventsStoredInSink: 0}, executor.Metrics())
+
+	time.Sleep(time.Second)
 }
 
 type PanickingMockExtractor struct {
@@ -302,7 +338,15 @@ func TestExecutorProcessEvent(t *testing.T) {
 		&MockLoader_NoError{},
 		etltest.NewMockExtractor(spec.Source.Config), // not used, but should be changed to full spec
 	)
-	executor := NewExecutor(Config{}, stream)
+
+	notifyChan := make(entity.NotifyChan, 128)
+	go handleNotificationEvents(notifyChan)
+	time.Sleep(time.Second)
+	config := Config{
+		NotifyChan: notifyChan,
+		Log:        false,
+	}
+	executor := NewExecutor(config, stream)
 
 	// Test happy path
 	result := executor.ProcessEvent(context.Background(), tinyTestEvent(time.Now()))
@@ -310,6 +354,7 @@ func TestExecutorProcessEvent(t *testing.T) {
 	assert.Equal(t, properResourceId, result.ResourceId)
 	assert.Equal(t, 1, streamLoadAttempts)
 	assert.Equal(t, entity.ExecutorStatusSuccessful, result.Status)
+	assert.Equal(t, entity.Metrics{EventsProcessed: 1, EventsStoredInSink: 1}, executor.Metrics())
 
 	// Test correct result when nothing to transform
 	stream.transformer = &MockTransformer_NothingToTransform{}
@@ -317,6 +362,7 @@ func TestExecutorProcessEvent(t *testing.T) {
 	result = executor.ProcessEvent(context.Background(), tinyTestEvent(time.Now()))
 	assert.NoError(t, result.Error)
 	assert.Equal(t, entity.ExecutorStatusSuccessful, result.Status)
+	assert.Equal(t, entity.Metrics{EventsProcessed: 2, EventsStoredInSink: 1}, executor.Metrics())
 
 	// Test handling of non-retryable error
 	stream.loader = &MockLoader_Error{}
@@ -328,6 +374,7 @@ func TestExecutorProcessEvent(t *testing.T) {
 	assert.Equal(t, noResourceId, result.ResourceId)
 	assert.Equal(t, 1, streamLoadAttempts)
 	assert.Equal(t, entity.ExecutorStatusError, result.Status)
+	assert.Equal(t, entity.Metrics{EventsProcessed: 3, EventsStoredInSink: 1}, executor.Metrics())
 
 	// Test handling of retryable error
 	stream.loader = &MockLoader_RetryableError{}
@@ -338,6 +385,7 @@ func TestExecutorProcessEvent(t *testing.T) {
 	assert.Equal(t, noResourceId, result.ResourceId)
 	assert.Equal(t, entity.DefaultMaxEventProcessingRetries+1, streamLoadAttempts)
 	assert.Equal(t, entity.ExecutorStatusRetriesExhausted, result.Status)
+	assert.Equal(t, entity.Metrics{EventsProcessed: 4, EventsStoredInSink: 1}, executor.Metrics())
 }
 
 // Test processing of multiple events in a single call
@@ -368,6 +416,7 @@ func TestExecutorProcessMultiEvent(t *testing.T) {
 	assert.Equal(t, entity.ExecutorStatusSuccessful, result.Status)
 	assert.Equal(t, tinyEvent, loader.Data[0].Data["originalEventData"])
 	assert.Equal(t, tinyEvent2, loader.Data[1].Data["originalEventData"])
+	assert.Equal(t, entity.Metrics{EventsProcessed: 2, EventsStoredInSink: 2}, executor.Metrics())
 }
 
 func TestValid(t *testing.T) {

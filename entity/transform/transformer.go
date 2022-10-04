@@ -10,15 +10,8 @@ import (
 
 	"github.com/zpiroux/geist/entity"
 
-	"github.com/teltech/logger"
 	"github.com/tidwall/gjson"
 )
-
-var log *logger.Log
-
-func init() {
-	log = logger.New()
-}
 
 // Default Transformer implementation (stateless, immutable).
 // This is currently the only implementation and supports all transformation types available in a GEIST spec.
@@ -141,18 +134,12 @@ func (t *Transformer) regexpTransform(event []byte, transformed *[]*entity.Trans
 
 	transform, event, err = t.preProcessRegExp(event, transformed)
 	if err != nil {
-		log.Warn(err.Error())
-		return nil
-	}
-
-	if t.spec.Ops.LogEventData {
-		log.Debugf("Received event for RegExp transform. Event: %s", string(event))
+		return err
 	}
 
 	result, err := applyRegExp(t.regexp, t.spec.Transform.Regexp, event, transform, t.groups)
 	if err != nil {
-		log.Warn(err.Error())
-		return nil
+		return err
 	}
 	if len(*transformed) < 1 {
 		*transformed = append(*transformed, result)
@@ -280,7 +267,7 @@ func extractFields(fieldExtraction entity.ExtractFields, event []byte) (*entity.
 		case "unixTimestamp":
 			transformed.Data[field.Id] = convertFromMillisToGoTime(value.Int())
 		case "userAgent":
-			transformed.Data[field.Id] = convertFromUAStringToUAJSON(value.String())
+			transformed.Data[field.Id], err = convertFromUAStringToUAJSON(value.String())
 		default:
 			transformed.Data[field.Id] = value.String()
 		}
@@ -354,11 +341,10 @@ func timeConv(tcSpec *entity.TimeConv, date string) (string, error) {
 	return t.Format(tcSpec.OutputFormat), nil
 }
 
-func convertFromUAStringToUAJSON(uaStr string) string {
+func convertFromUAStringToUAJSON(uaStr string) (string, error) {
 	ua, err := NewUserAgent(uaStr)
 	if err != nil {
-		log.Warnf("could not transform UA string to UA JSON, uaStr: %s, err: %v", uaStr, err)
-		return ""
+		return "", err
 	}
-	return ua.String()
+	return ua.String(), nil
 }

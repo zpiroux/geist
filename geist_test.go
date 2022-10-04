@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -84,21 +85,58 @@ var testSpec2 = []byte(`
 func TestGeist(t *testing.T) {
 
 	ctx := context.Background()
+
 	_, err := New(ctx, &Config{})
 	assert.Equal(t, err, ErrConfigNotInitialized)
 
-	//log = log.WithLevel(logger.DEBUG)
+	// Create Geist
 	cfg := NewConfig()
+	cfg.Ops.Log = false
 	geist, err := New(ctx, cfg)
 	assert.NoError(t, err)
 
-	go geistTest(ctx, geist, t)
+	// Set up notification event handling
+	notifyChan, err := geist.NotifyChannel()
+	assert.NoError(t, err)
+	var (
+		wgNotifyHandler, wgGeist sync.WaitGroup
+		nbNotificationEvents     int
+	)
+	wgNotifyHandler.Add(1)
+	go handleNotificationEvents(notifyChan, &wgNotifyHandler, &nbNotificationEvents)
+	time.Sleep(time.Second)
 
+	// Run geist tests
+	wgGeist.Add(1)
+	go geistTest(ctx, geist, &wgGeist, t)
 	err = geist.Run(ctx)
 	assert.NoError(t, err)
+
+	// Validate nofication event functionality
+	wgGeist.Wait()
+	close(notifyChan)
+	wgNotifyHandler.Wait()
+	assert.Equal(t, 18, nbNotificationEvents)
 }
 
-func geistTest(ctx context.Context, geist *Geist, t *testing.T) {
+func handleNotificationEvents(ch entity.NotifyChan, wg *sync.WaitGroup, nbEvents *int) {
+	var n int
+	for event := range ch {
+		n++
+		fmt.Printf("%+v\n", event)
+	}
+	*nbEvents = n
+	wg.Done()
+}
+
+const (
+	AdminSpec = "geist-adminevents-inmem"
+	RegSpec   = "geist-specs"
+	TestSpec1 = "geist-test1"
+	TestSpec2 = "geist-test2"
+)
+
+func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing.T) {
 
 	var id1, id2, eventId string
 
@@ -106,23 +144,44 @@ func geistTest(ctx context.Context, geist *Geist, t *testing.T) {
 	_, err := geist.RegisterStream(ctx, []byte("hi"))
 	assert.Error(t, err)
 
+	// Test initial metrics
+	expectedMetrics := map[string]entity.Metrics{
+		AdminSpec: {EventsProcessed: 0, EventsStoredInSink: 0},
+		RegSpec:   {EventsProcessed: 0, EventsStoredInSink: 0},
+	}
+	assert.Equal(t, expectedMetrics, geist.Metrics())
+
 	// Test register valid specs
 	id1, err = geist.RegisterStream(ctx, testSpec1)
 	assert.NoError(t, err)
-	assert.Equal(t, "geist-test1", id1)
+	assert.Equal(t, TestSpec1, id1)
 	time.Sleep(2 * time.Second)
+	expectedMetrics = map[string]entity.Metrics{
+		AdminSpec: {EventsProcessed: 1, EventsStoredInSink: 1},
+		RegSpec:   {EventsProcessed: 1, EventsStoredInSink: 1},
+		TestSpec1: {EventsProcessed: 0, EventsStoredInSink: 0},
+	}
+	assert.Equal(t, expectedMetrics, geist.Metrics())
 
 	id2, err = geist.RegisterStream(ctx, testSpec2)
 	assert.NoError(t, err)
-	assert.Equal(t, "geist-test2", id2)
-	time.Sleep(2 * time.Second)
+	assert.Equal(t, TestSpec2, id2)
+	time.Sleep(time.Second)
+	expectedMetrics = map[string]entity.Metrics{
+		AdminSpec: {EventsProcessed: 2, EventsStoredInSink: 2},
+		RegSpec:   {EventsProcessed: 2, EventsStoredInSink: 2},
+		TestSpec1: {EventsProcessed: 0, EventsStoredInSink: 0},
+		TestSpec2: {EventsProcessed: 0, EventsStoredInSink: 0},
+	}
+	assert.Equal(t, expectedMetrics, geist.Metrics())
 
 	// Test retrieving specs
 	specs, err := geist.GetStreamSpecs(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(specs))
+	assert.Equal(t, expectedMetrics, geist.Metrics())
 
-	specBytesOut, err := geist.GetStreamSpec("geist-test1")
+	specBytesOut, err := geist.GetStreamSpec(TestSpec1)
 	assert.NoError(t, err)
 	spec, err := entity.NewSpec(testSpec1)
 	assert.NoError(t, err)
@@ -139,7 +198,7 @@ func geistTest(ctx context.Context, geist *Geist, t *testing.T) {
 	// Validate proper spec
 	specId, err := geist.ValidateStreamSpec(testSpec2)
 	assert.NoError(t, err)
-	assert.Equal(t, "geist-test2", specId)
+	assert.Equal(t, TestSpec2, specId)
 
 	// Validate incorrect spec
 	specId, err = geist.ValidateStreamSpec([]byte(`{ "spec": "nope, not a valid spec"}`))
@@ -154,9 +213,16 @@ func geistTest(ctx context.Context, geist *Geist, t *testing.T) {
 	eventId, err = geist.Publish(ctx, id2, event)
 	assert.Equal(t, "<noResourceId>", eventId)
 	assert.NoError(t, err)
+	expectedMetrics = map[string]entity.Metrics{
+		AdminSpec: {EventsProcessed: 2, EventsStoredInSink: 2},
+		RegSpec:   {EventsProcessed: 2, EventsStoredInSink: 2},
+		TestSpec1: {EventsProcessed: 1, EventsStoredInSink: 1},
+		TestSpec2: {EventsProcessed: 1, EventsStoredInSink: 1},
+	}
+	assert.Equal(t, expectedMetrics, geist.Metrics())
 
 	// Test Publish directly on to Registry stream not allowed
-	regStreamId := "geist-specs"
+	regStreamId := RegSpec
 	eventId, err = geist.Publish(ctx, regStreamId, event)
 	assert.Empty(t, eventId)
 	assert.Equal(t, err, ErrCodeInvalidSpecRegOp)
@@ -168,6 +234,15 @@ func geistTest(ctx context.Context, geist *Geist, t *testing.T) {
 
 	err = geist.Shutdown(ctx)
 	assert.NoError(t, err)
+
+	expectedMetrics = map[string]entity.Metrics{
+		AdminSpec: {EventsProcessed: 2, EventsStoredInSink: 2},
+		RegSpec:   {EventsProcessed: 2, EventsStoredInSink: 2},
+		TestSpec1: {EventsProcessed: 1, EventsStoredInSink: 1},
+		TestSpec2: {EventsProcessed: 1, EventsStoredInSink: 1},
+	}
+	assert.Equal(t, expectedMetrics, geist.Metrics())
+	wg.Done()
 }
 
 func TestEnrichment(t *testing.T) {
@@ -272,8 +347,8 @@ func (sef *SillyExtractorFactory) SourceId() string {
 	return sef.sourceId
 }
 
-func (sef *SillyExtractorFactory) NewExtractor(ctx context.Context, spec *entity.Spec, id string) (entity.Extractor, error) {
-	return &sillyExtractor{spec: spec}, nil
+func (sef *SillyExtractorFactory) NewExtractor(ctx context.Context, c entity.Config) (entity.Extractor, error) {
+	return &sillyExtractor{spec: c.Spec}, nil
 }
 
 func (sef *SillyExtractorFactory) Close() error {
@@ -325,11 +400,11 @@ func (slf *SillyLoaderFactory) SinkId() string {
 	return slf.sinkId
 }
 
-func (slf *SillyLoaderFactory) NewLoader(ctx context.Context, spec *entity.Spec, id string) (entity.Loader, error) {
+func (slf *SillyLoaderFactory) NewLoader(ctx context.Context, c entity.Config) (entity.Loader, error) {
 	slf.latestLoader = &sillyLoader{}
 	return slf.latestLoader, nil
 }
-func (slf *SillyLoaderFactory) NewSinkExtractor(ctx context.Context, spec *entity.Spec, id string) (entity.Extractor, error) {
+func (slf *SillyLoaderFactory) NewSinkExtractor(ctx context.Context, c entity.Config) (entity.Extractor, error) {
 	return nil, nil
 }
 func (slf *SillyLoaderFactory) Close() error {

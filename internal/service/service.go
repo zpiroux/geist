@@ -5,17 +5,11 @@ import (
 	"encoding/json"
 	"sync"
 
-	"github.com/teltech/logger"
+	"github.com/zpiroux/geist/entity"
 	"github.com/zpiroux/geist/internal/pkg/assembly"
 	"github.com/zpiroux/geist/internal/pkg/engine"
 	"github.com/zpiroux/geist/internal/pkg/registry"
 )
-
-var log *logger.Log
-
-func init() {
-	log = logger.New()
-}
 
 // Service is responsible for creating and injecting concrete implementations
 // of the various parts required by GEIST to function.
@@ -30,16 +24,14 @@ type Service struct {
 
 type Config struct {
 	AdminStreamSpec []byte
+	NotifyChanSize  int
 	Registry        registry.Config
 	Engine          engine.Config
 	Entity          assembly.Config
 }
 
-// TODO: remove log and change to return err
-func (c Config) Close() {
-	if err := c.Entity.Close(); err != nil {
-		log.Errorf("error closing ETL entities: %v", err)
-	}
+func (c Config) Close() error {
+	return c.Entity.Close()
 }
 
 func New(ctx context.Context, cfg Config) (*Service, error) {
@@ -70,6 +62,10 @@ func New(ctx context.Context, cfg Config) (*Service, error) {
 	return &s, err
 }
 
+func (s *Service) NotifyChan() entity.NotifyChan {
+	return s.config.Engine.NotifyChan
+}
+
 func (s *Service) Run(ctx context.Context) error {
 	return s.supervisor.Run(ctx, &s.ready)
 }
@@ -78,9 +74,10 @@ func (s *Service) AwaitReady() {
 	s.ready.Wait()
 }
 
-func (s *Service) Shutdown(ctx context.Context, err error) {
-	s.config.Close()
-	s.supervisor.Shutdown(err)
+func (s *Service) Shutdown(ctx context.Context) error {
+	err := s.config.Close()
+	s.supervisor.Shutdown()
+	return err
 }
 
 func (s *Service) Registry() *registry.StreamRegistry {
@@ -93,6 +90,10 @@ func (s *Service) Stream(streamId string) (*engine.Stream, error) {
 		return nil, err
 	}
 	return stream.(*engine.Stream), err
+}
+
+func (s *Service) Metrics() map[string]entity.Metrics {
+	return s.supervisor.Metrics()
 }
 
 func (s *Service) Entities() map[string]map[string]bool {

@@ -25,10 +25,10 @@ func (ef *emitterFactory) SourceId() string {
 	return ef.sourceId
 }
 
-func (ef *emitterFactory) NewExtractor(ctx context.Context, spec *entity.Spec, id string) (entity.Extractor, error) {
-	customConfig := spec.Source.Config.CustomConfig.(map[string]any)
+func (ef *emitterFactory) NewExtractor(ctx context.Context, c entity.Config) (entity.Extractor, error) {
+	customConfig := c.Spec.Source.Config.CustomConfig.(map[string]any)
 	interval, _ := strconv.Atoi(customConfig["emitIntervalSeconds"].(string))
-	return &emitter{spec: spec, emitInterval: interval}, nil
+	return &emitter{spec: c.Spec, emitInterval: interval}, nil
 }
 
 func (ef *emitterFactory) Close() error {

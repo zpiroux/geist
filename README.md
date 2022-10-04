@@ -338,6 +338,15 @@ But it's usually a good approach to start with a low number of streams per pod, 
 
 Further parameters can be found in the stream spec definition ([spec.go](entity/spec.go)), with general ones in the `Ops` struct and Source/Sink specific ones in respective `SourceConfig` and `SinkConfig` struct.
 
+## Observability
+### Logging and Notification Events
+Geist sends important and informational log events to a notification channel accessible from `geist.NotifyChannel()`. The size of the chan buffer can be specified during Geist creation with `Config.Ops.NotifyChanSize`.
+
+If usage of the notification channel is not needed, Geist can also be configured to perform standard logging of those events on its native format. This can be enabled by setting `Config.Ops.Log` to true.
+
+### Metrics
+Event processing metrics can be retrieved with `geist.Metrics()`.
+
 ## Limitations and improvement areas
 Although Geist has been run in production with heavy load, no data-loss, and zero downtime for ~two years, it makes no guarantees that all combinations of stream spec options will work fully in all cases.
 
@@ -359,11 +368,6 @@ Geist is not meant to support complex stream processing, including stream joins 
 
 ### Event schema
 Only JSON currently supported.
-
-### Logging configurability
-Internal logging could be made more configurable externally.
-
-Log level is based on environment variable LOG_LEVEL. If not set, INFO will be used.
 
 ### Spec schema
 For historical reasons some fields in the [Spec schema](entity/spec.go) are only used for specific source/sink types, even though the `customConfig` enables any arbitrary config to be used.

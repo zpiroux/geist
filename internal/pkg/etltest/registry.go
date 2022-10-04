@@ -143,7 +143,6 @@ func (r *StreamRegistry) registerSpec(ctx context.Context, id string, path strin
 
 func (r *StreamRegistry) SetAdminStream(stream igeist.Stream) {
 	// Admin stream not part of these tests
-
 }
 
 // Executor interface impl
@@ -154,6 +153,10 @@ func (r *StreamRegistry) StreamId() string {
 
 func (r *StreamRegistry) Spec() igeist.Spec {
 	return SpecSpec()
+}
+
+func (r *StreamRegistry) Metrics() entity.Metrics {
+	return r.executor.Metrics()
 }
 
 func (r *StreamRegistry) Run(ctx context.Context, wg *sync.WaitGroup) {
