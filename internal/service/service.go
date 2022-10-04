@@ -92,6 +92,10 @@ func (s *Service) Stream(streamId string) (*engine.Stream, error) {
 	return stream.(*engine.Stream), err
 }
 
+func (s *Service) Metrics() map[string]entity.Metrics {
+	return s.supervisor.Metrics()
+}
+
 func (s *Service) Entities() map[string]map[string]bool {
 	return s.entityFactory.Entities()
 }

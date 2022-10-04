@@ -66,6 +66,10 @@ func (e *MockExecutor) Stream() igeist.Stream {
 	return e.stream
 }
 
+func (r *MockExecutor) Metrics() entity.Metrics {
+	return entity.Metrics{}
+}
+
 func (e *MockExecutor) Shutdown() {
 	// Nothing to mock here
 }

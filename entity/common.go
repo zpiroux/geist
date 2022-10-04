@@ -29,6 +29,23 @@ type Config struct {
 	Log        bool
 }
 
+// Metrics provided by the engine of its operations. Accessible from Geist API with
+// geist.Metrics()
+type Metrics struct {
+
+	// Number of events that were sent to Executor's ProcessEvent() by the Extractor,
+	// regardless of the outcome of downstream processing.
+	EventsProcessed int64
+
+	// Number of events that were successfully processed by the sink.
+	EventsStoredInSink int64
+}
+
+func (m *Metrics) Reset() {
+	m.EventsProcessed = 0
+	m.EventsStoredInSink = 0
+}
+
 // Some Stream ETL Entities need different configurations based on environements.
 // This is not possible to set in the generic GEIST build config since ETL entities are
 // configured in externally provided ETL Stream Specs. The environment concept is

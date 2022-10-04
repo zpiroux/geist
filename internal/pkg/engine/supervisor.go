@@ -115,6 +115,27 @@ func (s *Supervisor) deployExecutor(ctx context.Context, executor igeist.Executo
 	go executor.Run(ctx, &s.wgExecutors)
 }
 
+func (s *Supervisor) Metrics() map[string]entity.Metrics {
+
+	var metricsPerStream entity.Metrics
+	metrics := make(map[string]entity.Metrics)
+
+	executorMap := s.archivist.GrantExclusiveAccess()
+	defer s.archivist.RevokeExclusiveAccess()
+
+	for streamId, executors := range *executorMap {
+
+		metricsPerStream.Reset()
+		for _, executor := range executors {
+			m := executor.Metrics()
+			metricsPerStream.EventsProcessed += m.EventsProcessed
+			metricsPerStream.EventsStoredInSink += m.EventsStoredInSink
+		}
+		metrics[streamId] = metricsPerStream
+	}
+	return metrics
+}
+
 // Shutdown is called by the service during shutdown
 func (s *Supervisor) Shutdown() {
 	s.notifier.Notify(entity.NotifyLevelInfo, "Shutting down")

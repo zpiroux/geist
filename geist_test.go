@@ -99,21 +99,23 @@ func TestGeist(t *testing.T) {
 	notifyChan, err := geist.NotifyChannel()
 	assert.NoError(t, err)
 	var (
-		wg                   sync.WaitGroup
-		nbNotificationEvents int
+		wgNotifyHandler, wgGeist sync.WaitGroup
+		nbNotificationEvents     int
 	)
-	wg.Add(1)
-	go handleNotificationEvents(notifyChan, &wg, &nbNotificationEvents)
+	wgNotifyHandler.Add(1)
+	go handleNotificationEvents(notifyChan, &wgNotifyHandler, &nbNotificationEvents)
 	time.Sleep(time.Second)
 
 	// Run geist tests
-	go geistTest(ctx, geist, t)
+	wgGeist.Add(1)
+	go geistTest(ctx, geist, &wgGeist, t)
 	err = geist.Run(ctx)
 	assert.NoError(t, err)
 
 	// Validate nofication event functionality
+	wgGeist.Wait()
 	close(notifyChan)
-	wg.Wait()
+	wgNotifyHandler.Wait()
 	assert.Equal(t, 18, nbNotificationEvents)
 }
 
@@ -127,7 +129,7 @@ func handleNotificationEvents(ch entity.NotifyChan, wg *sync.WaitGroup, nbEvents
 	wg.Done()
 }
 
-func geistTest(ctx context.Context, geist *Geist, t *testing.T) {
+func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing.T) {
 
 	var id1, id2, eventId string
 
@@ -135,21 +137,42 @@ func geistTest(ctx context.Context, geist *Geist, t *testing.T) {
 	_, err := geist.RegisterStream(ctx, []byte("hi"))
 	assert.Error(t, err)
 
+	// Test initial metrics
+	expectedMetrics := map[string]entity.Metrics{
+		"geist-adminevents-inmem": {EventsProcessed: 0, EventsStoredInSink: 0},
+		"geist-specs":             {EventsProcessed: 0, EventsStoredInSink: 0},
+	}
+	assert.Equal(t, expectedMetrics, geist.Metrics())
+
 	// Test register valid specs
 	id1, err = geist.RegisterStream(ctx, testSpec1)
 	assert.NoError(t, err)
 	assert.Equal(t, "geist-test1", id1)
 	time.Sleep(2 * time.Second)
+	expectedMetrics = map[string]entity.Metrics{
+		"geist-adminevents-inmem": {EventsProcessed: 1, EventsStoredInSink: 1},
+		"geist-specs":             {EventsProcessed: 1, EventsStoredInSink: 1},
+		"geist-test1":             {EventsProcessed: 0, EventsStoredInSink: 0},
+	}
+	assert.Equal(t, expectedMetrics, geist.Metrics())
 
 	id2, err = geist.RegisterStream(ctx, testSpec2)
 	assert.NoError(t, err)
 	assert.Equal(t, "geist-test2", id2)
-	time.Sleep(2 * time.Second)
+	time.Sleep(time.Second)
+	expectedMetrics = map[string]entity.Metrics{
+		"geist-adminevents-inmem": {EventsProcessed: 2, EventsStoredInSink: 2},
+		"geist-specs":             {EventsProcessed: 2, EventsStoredInSink: 2},
+		"geist-test1":             {EventsProcessed: 0, EventsStoredInSink: 0},
+		"geist-test2":             {EventsProcessed: 0, EventsStoredInSink: 0},
+	}
+	assert.Equal(t, expectedMetrics, geist.Metrics())
 
 	// Test retrieving specs
 	specs, err := geist.GetStreamSpecs(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(specs))
+	assert.Equal(t, expectedMetrics, geist.Metrics())
 
 	specBytesOut, err := geist.GetStreamSpec("geist-test1")
 	assert.NoError(t, err)
@@ -183,6 +206,13 @@ func geistTest(ctx context.Context, geist *Geist, t *testing.T) {
 	eventId, err = geist.Publish(ctx, id2, event)
 	assert.Equal(t, "<noResourceId>", eventId)
 	assert.NoError(t, err)
+	expectedMetrics = map[string]entity.Metrics{
+		"geist-adminevents-inmem": {EventsProcessed: 2, EventsStoredInSink: 2},
+		"geist-specs":             {EventsProcessed: 2, EventsStoredInSink: 2},
+		"geist-test1":             {EventsProcessed: 1, EventsStoredInSink: 1},
+		"geist-test2":             {EventsProcessed: 1, EventsStoredInSink: 1},
+	}
+	assert.Equal(t, expectedMetrics, geist.Metrics())
 
 	// Test Publish directly on to Registry stream not allowed
 	regStreamId := "geist-specs"
@@ -197,6 +227,15 @@ func geistTest(ctx context.Context, geist *Geist, t *testing.T) {
 
 	err = geist.Shutdown(ctx)
 	assert.NoError(t, err)
+
+	expectedMetrics = map[string]entity.Metrics{
+		"geist-adminevents-inmem": {EventsProcessed: 2, EventsStoredInSink: 2},
+		"geist-specs":             {EventsProcessed: 2, EventsStoredInSink: 2},
+		"geist-test1":             {EventsProcessed: 1, EventsStoredInSink: 1},
+		"geist-test2":             {EventsProcessed: 1, EventsStoredInSink: 1},
+	}
+	assert.Equal(t, expectedMetrics, geist.Metrics())
+	wg.Done()
 }
 
 func TestEnrichment(t *testing.T) {

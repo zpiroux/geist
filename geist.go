@@ -55,6 +55,14 @@ func (g *Geist) NotifyChannel() (entity.NotifyChan, error) {
 	return g.service.NotifyChan(), nil
 }
 
+// Metrics provides real-time metrics per stream ID.
+func (g *Geist) Metrics() map[string]entity.Metrics {
+	if g.service == nil {
+		return map[string]entity.Metrics{}
+	}
+	return g.service.Metrics()
+}
+
 // Run starts up Geist's internal services and all previously registered streams
 // (if Geist configured to use persistent registry), as prepared by New().
 // It is a blocking call until Geist is shut down, from a call to Shutdown or if

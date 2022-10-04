@@ -156,6 +156,10 @@ func (r *StreamRegistry) Stream() igeist.Stream {
 	return r.executor.Stream()
 }
 
+func (r *StreamRegistry) Metrics() entity.Metrics {
+	return r.executor.Metrics()
+}
+
 func (r *StreamRegistry) Run(ctx context.Context, wg *sync.WaitGroup) {
 	var (
 		err       error

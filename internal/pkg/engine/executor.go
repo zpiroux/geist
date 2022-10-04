@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/teltech/logger"
@@ -40,7 +39,8 @@ type Executor struct {
 	// Number of events processed. Although we could use uint64 here, we can still have
 	// each executor running almost 3 million years (assuming 100000 events/second) using
 	// int64, before overflowing, so should be enough :)
-	events int64
+	eventsProcessed    int64
+	eventsStoredInSink int64
 }
 
 func NewExecutor(config Config, stream igeist.Stream) *Executor {
@@ -87,6 +87,13 @@ func (e *Executor) Stream() igeist.Stream {
 	return e.stream
 }
 
+func (e *Executor) Metrics() entity.Metrics {
+	return entity.Metrics{
+		EventsProcessed:    e.eventsProcessed,
+		EventsStoredInSink: e.eventsStoredInSink,
+	}
+}
+
 func (e *Executor) Run(ctx context.Context, wg *sync.WaitGroup) {
 	var (
 		err       error
@@ -123,7 +130,7 @@ func (e *Executor) Run(ctx context.Context, wg *sync.WaitGroup) {
 		break
 	}
 
-	e.notifier.Notify(entity.NotifyLevelInfo, "finished. Events processed: %d", e.events)
+	e.notifier.Notify(entity.NotifyLevelInfo, "finished. Events processed: %d, stored in sink: %d", e.eventsProcessed, e.eventsStoredInSink)
 }
 
 func (e *Executor) runExit(wg *sync.WaitGroup) {
@@ -158,9 +165,9 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 	}
 
 	for _, event := range events {
-		atomic.AddInt64(&e.events, 1)
-		if e.events%int64(e.config.EventLogInterval) == 0 {
-			e.notifier.Notify(entity.NotifyLevelInfo, "[metric] nb events processed: %d", e.events)
+		e.eventsProcessed++
+		if e.eventsProcessed%int64(e.config.EventLogInterval) == 0 {
+			e.notifier.Notify(entity.NotifyLevelInfo, "[metric] nb events processed: %d, stored in sink: %d", e.eventsProcessed, e.eventsStoredInSink)
 		}
 
 		// Apply injection of stream processing logic if requested
@@ -223,6 +230,7 @@ func (e *Executor) loadToSink(ctx context.Context, transformed []*entity.Transfo
 		result.ResourceId, result.Error, result.Retryable = e.stream.Loader().StreamLoad(ctx, transformed)
 
 		if result.Error == nil {
+			e.eventsStoredInSink += int64(len(transformed))
 			result.Status = entity.ExecutorStatusSuccessful
 			break
 		}
