@@ -81,26 +81,32 @@ func (t *Transformer) shouldExclude(event []byte, transformed *[]*entity.Transfo
 
 		valueToCheck := gjson.GetBytes(event, filter.Key)
 		if !valueToCheck.Exists() {
-			if filter.ValueIsEmpty != nil {
-				if *filter.ValueIsEmpty {
-					return true
-				}
+			if excludeIfEmpty(filter.ValueIsEmpty) {
+				return true
 			}
 			continue
 		}
 		value := valueToCheck.String()
 
 		if len(filter.Values) > 0 {
-			if exclude = excludeIfInBlacklist(value, filter.Values); exclude {
-				break
-			}
+			exclude = excludeIfInBlacklist(value, filter.Values)
 		} else if len(filter.ValuesNotIn) > 0 {
-			if exclude = excludeIfNotInWhitelist(value, filter.ValuesNotIn); exclude {
-				break
-			}
+			exclude = excludeIfNotInWhitelist(value, filter.ValuesNotIn)
+		}
+		if exclude {
+			break
 		}
 	}
 	return
+}
+
+func excludeIfEmpty(filterValueIsEmpty *bool) bool {
+	if filterValueIsEmpty != nil {
+		if *filterValueIsEmpty {
+			return true
+		}
+	}
+	return false
 }
 
 func excludeIfInBlacklist(value string, filterValues []string) bool {
