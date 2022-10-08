@@ -113,7 +113,7 @@ func (r *StreamRegistry) Exists(id string) bool {
 	return false
 }
 
-func (r *StreamRegistry) ExistsSameVersion(specBytes []byte) (bool, error) {
+func (r *StreamRegistry) ExistsWithSameOrHigherVersion(specBytes []byte) (bool, error) {
 	return false, nil
 }
 

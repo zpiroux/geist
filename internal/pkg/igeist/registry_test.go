@@ -55,7 +55,7 @@ func (s *SpecRegistryTest) Exists(id string) bool {
 	return false
 }
 
-func (s *SpecRegistryTest) ExistsSameVersion(specData []byte) (bool, error) {
+func (s *SpecRegistryTest) ExistsWithSameOrHigherVersion(specData []byte) (bool, error) {
 	return false, nil
 }
 

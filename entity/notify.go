@@ -41,18 +41,42 @@ const (
 	NotifyLevelError
 )
 
-var notifyLevelName = map[int]string{
-	NotifyLevelInvalid: "INVALID",
-	NotifyLevelDebug:   "DEBUG",
-	NotifyLevelInfo:    "INFO",
-	NotifyLevelWarn:    "WARN",
-	NotifyLevelError:   "ERROR",
-}
+const (
+	NotifyLevelStrInvalid = "INVALID"
+	NotifyLevelStrDebug   = "DEBUG"
+	NotifyLevelStrInfo    = "INFO"
+	NotifyLevelStrWarn    = "WARN"
+	NotifyLevelStrError   = "ERROR"
+)
 
 func NotifyLevelName(notifyLevel int) string {
 	name, ok := notifyLevelName[notifyLevel]
 	if !ok {
-		name = "INVALID"
+		name = NotifyLevelStrInvalid
 	}
 	return name
+}
+
+func NotifyLevel(notifyLevelName string) int {
+	level, ok := notifyLevel[notifyLevelName]
+	if !ok {
+		level = NotifyLevelInvalid
+	}
+	return level
+}
+
+var notifyLevelName = map[int]string{
+	NotifyLevelInvalid: NotifyLevelStrInvalid,
+	NotifyLevelDebug:   NotifyLevelStrDebug,
+	NotifyLevelInfo:    NotifyLevelStrInfo,
+	NotifyLevelWarn:    NotifyLevelStrWarn,
+	NotifyLevelError:   NotifyLevelStrError,
+}
+
+var notifyLevel = map[string]int{
+	NotifyLevelStrInvalid: NotifyLevelInvalid,
+	NotifyLevelStrDebug:   NotifyLevelDebug,
+	NotifyLevelStrInfo:    NotifyLevelInfo,
+	NotifyLevelStrWarn:    NotifyLevelWarn,
+	NotifyLevelStrError:   NotifyLevelError,
 }

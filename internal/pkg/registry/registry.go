@@ -11,7 +11,7 @@ import (
 	"github.com/zpiroux/geist/entity"
 	"github.com/zpiroux/geist/internal/pkg/admin"
 	"github.com/zpiroux/geist/internal/pkg/igeist"
-	"github.com/zpiroux/geist/internal/pkg/notify"
+	"github.com/zpiroux/geist/pkg/notify"
 )
 
 // Regardless of DB implementation for Registry, it requires the ETL spec to use
@@ -47,7 +47,7 @@ func NewStreamRegistry(config Config, executor igeist.Executor, notifyChan entit
 	if logging {
 		log = logger.New()
 	}
-	sr.notifier = notify.New(notifyChan, log, 2, "streamregistry", sr.StreamId(), "")
+	sr.notifier = notify.New(notifyChan, log, 2, "streamregistry", executor.Stream().Instance(), sr.StreamId())
 
 	return sr
 }
@@ -91,7 +91,7 @@ func (r *StreamRegistry) Fetch(ctx context.Context) error {
 		rawData := []byte(specData.Data[RawEventField].(string))
 		spec, err := entity.NewSpec(rawData)
 		if err != nil {
-			r.notifier.Notify(entity.NotifyLevelError, "stored spec is corrupt and will be disregarded, err: %s, specData: %s", err.Error(), string(rawData))
+			r.notifier.Notify(entity.NotifyLevelError, "Stored spec is corrupt and will be disregarded, err: %s, specData: %s", err.Error(), string(rawData))
 			continue
 		}
 
@@ -118,7 +118,7 @@ func (r *StreamRegistry) Exists(id string) bool {
 	return exists
 }
 
-func (r *StreamRegistry) ExistsSameVersion(specBytes []byte) (bool, error) {
+func (r *StreamRegistry) ExistsWithSameOrHigherVersion(specBytes []byte) (bool, error) {
 	spec, err := entity.NewSpec(specBytes)
 	if err != nil {
 		return false, err
@@ -128,7 +128,7 @@ func (r *StreamRegistry) ExistsSameVersion(specBytes []byte) (bool, error) {
 		return false, nil
 	}
 
-	if spec.Version == existingSpec.(*entity.Spec).Version {
+	if spec.Version <= existingSpec.(*entity.Spec).Version {
 		return true, nil
 	}
 
@@ -191,7 +191,7 @@ func (r *StreamRegistry) ProcessEvent(ctx context.Context, events []entity.Event
 		if err == nil {
 			if spec.Id() != result.ResourceId {
 				// Depending on the sink type this might not be an error
-				r.notifier.Notify(entity.NotifyLevelWarn, "spec and resource id don't match (%s, %s)", spec.Id(), result.ResourceId)
+				r.notifier.Notify(entity.NotifyLevelWarn, "Spec and resource id don't match (%s, %s)", spec.Id(), result.ResourceId)
 			}
 
 			err = r.Put(ctx, spec.Id(), spec)
@@ -226,7 +226,7 @@ func (r *StreamRegistry) sendRegistryModifiedEvent(ctx context.Context, streamId
 	if err == nil {
 		r.notifier.Notify(entity.NotifyLevelInfo, "Successfully published admin event: %+v with id: %s", event, eventId)
 	} else {
-		r.notifier.Notify(entity.NotifyLevelError, "failed publishing admin event: %+v, err: %v", event, err)
+		r.notifier.Notify(entity.NotifyLevelError, "Failed publishing admin event: %+v, err: %v", event, err)
 	}
 
 	return err

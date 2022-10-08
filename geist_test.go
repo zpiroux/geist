@@ -116,7 +116,7 @@ func TestGeist(t *testing.T) {
 	wgGeist.Wait()
 	close(notifyChan)
 	wgNotifyHandler.Wait()
-	assert.Equal(t, 18, nbNotificationEvents)
+	assert.Equal(t, 20, nbNotificationEvents)
 }
 
 func handleNotificationEvents(ch entity.NotifyChan, wg *sync.WaitGroup, nbEvents *int) {

@@ -9,7 +9,7 @@ import (
 
 	"github.com/teltech/logger"
 	"github.com/zpiroux/geist/entity"
-	"github.com/zpiroux/geist/internal/pkg/notify"
+	"github.com/zpiroux/geist/pkg/notify"
 )
 
 const sinkTypeId = "void"

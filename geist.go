@@ -17,7 +17,7 @@ import (
 var (
 	ErrConfigNotInitialized   = errors.New("geist.Config need to be created with NewConfig()")
 	ErrGeistNotInitialized    = errors.New("geist not initialized")
-	ErrSpecAlreadyExists      = errors.New("stream ID already exists with that version - increment version number to upgrade")
+	ErrSpecAlreadyExists      = errors.New("stream ID already exists with equal or higher version - increment version number to upgrade")
 	ErrInvalidStreamSpec      = errors.New("stream Specification is not valid")
 	ErrInvalidStreamId        = errors.New("invalid Stream ID")
 	ErrProtectedStreamId      = errors.New("spec format is valid but but stream ID is protected and cannot be used")
@@ -90,7 +90,7 @@ func (g *Geist) RegisterStream(ctx context.Context, specData []byte) (id string,
 		return id, errWithDetails(ErrInvalidStreamSpec, err)
 	}
 
-	exists, err := registry.ExistsSameVersion(specData)
+	exists, err := registry.ExistsWithSameOrHigherVersion(specData)
 
 	if err != nil {
 		return id, errWithDetails(ErrInternalDataProcessing, err)
