@@ -11,7 +11,7 @@ import (
 	"github.com/zpiroux/geist/entity"
 	"github.com/zpiroux/geist/internal/pkg/admin"
 	"github.com/zpiroux/geist/internal/pkg/igeist"
-	"github.com/zpiroux/geist/internal/pkg/notify"
+	"github.com/zpiroux/geist/pkg/notify"
 )
 
 // Supervisor is responsible for high-level lifecycle management of Geist streams. It initializes and starts up one
@@ -68,7 +68,7 @@ func (s *Supervisor) Init(ctx context.Context) error {
 
 		spec := sp.(*entity.Spec)
 		if spec.IsDisabled() {
-			s.notifier.Notify(entity.NotifyLevelInfo, "stream %s is disabled and will not be assigned to an executor", spec.Id())
+			s.notifier.Notify(entity.NotifyLevelInfo, "Stream %s is disabled and will not be assigned to an executor", spec.Id())
 			continue
 		}
 
@@ -88,7 +88,7 @@ func (s *Supervisor) Registry() igeist.StreamRegistry {
 // Run is the main entry point for GEIST execution of all streams
 func (s *Supervisor) Run(ctx context.Context, ready *sync.WaitGroup) error {
 
-	s.notifier.Notify(entity.NotifyLevelInfo, "starting up with config: %+v", s.config)
+	s.notifier.Notify(entity.NotifyLevelInfo, "Starting up with config: %+v", s.config)
 
 	var nbExecutorsDeployed int
 	executorMap := s.archivist.GrantExclusiveAccess()
@@ -278,9 +278,9 @@ func (s *Supervisor) AdminEventHandler() entity.Loader {
 	return s.eventHandler
 }
 
-// AdminEventHandler implements the igeist.Loader interface which will be called in the ETL stream
-// where the loader entity is set to 'Admin'. This is the sink in the stream listening for admin pubsub
-// events.
+// AdminEventHandler implements the igeist.Loader interface which will be called in the
+// stream where the loader entity is set to 'Admin'. This is the sink in the stream listening
+// for admin events.
 type AdminEventHandler struct {
 	supervisor *Supervisor
 	id         string
@@ -293,6 +293,8 @@ func (a *AdminEventHandler) StreamLoad(ctx context.Context, data []*entity.Trans
 	}
 
 	eventName := data[0].Data[admin.EventNameKey]
+	a.supervisor.notifier.Notify(entity.NotifyLevelInfo, "Admin event received: %s", eventName)
+
 	switch eventName {
 
 	case admin.EventStreamRegistryModified:

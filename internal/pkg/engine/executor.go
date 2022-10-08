@@ -11,7 +11,7 @@ import (
 	"github.com/teltech/logger"
 	"github.com/zpiroux/geist/entity"
 	"github.com/zpiroux/geist/internal/pkg/igeist"
-	"github.com/zpiroux/geist/internal/pkg/notify"
+	"github.com/zpiroux/geist/pkg/notify"
 )
 
 const (
@@ -118,7 +118,7 @@ func (e *Executor) Run(ctx context.Context, wg *sync.WaitGroup) {
 		if err != nil && ctx.Err() != context.Canceled {
 			e.notifier.Notify(entity.NotifyLevelError, "StreamExtract returned with error: %s, retryable: %v", err.Error(), retryable)
 			if retryable {
-				e.notifier.Notify(entity.NotifyLevelWarn, "stream restart (#%d) in %d seconds", i, backoffDuration)
+				e.notifier.Notify(entity.NotifyLevelWarn, "Stream restart (#%d) in %d seconds", i, backoffDuration)
 				if !sleepCtx(ctx, time.Duration(backoffDuration)*time.Second) {
 					break
 				}
@@ -131,13 +131,13 @@ func (e *Executor) Run(ctx context.Context, wg *sync.WaitGroup) {
 		break
 	}
 
-	e.notifier.Notify(entity.NotifyLevelInfo, "finished. Events processed: %d, stored in sink: %d", e.eventsProcessed, e.eventsStoredInSink)
+	e.notifier.Notify(entity.NotifyLevelInfo, "Executor finished. Events processed: %d, stored in sink: %d", e.eventsProcessed, e.eventsStoredInSink)
 }
 
 func (e *Executor) runExit(wg *sync.WaitGroup) {
 	// Protection against badly written extractor/source plugins
 	if r := recover(); r != nil {
-		e.notifier.Notify(entity.NotifyLevelError, "panic (%v) in StreamExtract() for spec %s, terminating stream", r, e.stream.Spec().JSON())
+		e.notifier.Notify(entity.NotifyLevelError, "Panic (%v) in StreamExtract() for spec %s, terminating stream", r, e.stream.Spec().JSON())
 	}
 	wg.Done()
 }
@@ -159,7 +159,7 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 	defer e.processEventExit()
 
 	if e.shutdownInProgress {
-		e.notifier.Notify(entity.NotifyLevelWarn, "rejecting event processing due to shutdown in progress, rejected events: %v", events)
+		e.notifier.Notify(entity.NotifyLevelWarn, "Rejecting event processing due to shutdown in progress, rejected events: %v", events)
 		result.Error = nil
 		result.Status = entity.ExecutorStatusShutdown
 		return result
@@ -207,7 +207,7 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 			return result
 		}
 		if e.logEventData() {
-			e.notifier.Notify(entity.NotifyLevelDebug, "event transformed into: %v", transEvent)
+			e.notifier.Notify(entity.NotifyLevelDebug, "Event transformed into: %v", transEvent)
 		}
 
 		transformed = append(transformed, transEvent...)
@@ -247,7 +247,7 @@ func (e *Executor) loadToSink(ctx context.Context, transformed []*entity.Transfo
 			if !sleepCtx(ctx, time.Duration(backoffDuration)*time.Second) {
 				break
 			}
-			e.notifier.Notify(entity.NotifyLevelInfo, "issuing retry attempt #%d, after backoff %d seconds", loadAttempts+1, backoffDuration)
+			e.notifier.Notify(entity.NotifyLevelInfo, "Issuing retry attempt #%d, after backoff %d seconds", loadAttempts+1, backoffDuration)
 			backoffDuration = 2 * backoffDuration
 			continue
 		} else {
@@ -258,7 +258,7 @@ func (e *Executor) loadToSink(ctx context.Context, transformed []*entity.Transfo
 	}
 
 	if result.Error != nil && result.Retryable {
-		e.notifier.Notify(entity.NotifyLevelError, "giving up retrying load to sink for spec ID %s, after %d attempts, transformed event(s): %+v", e.StreamId(), loadAttempts, transformed)
+		e.notifier.Notify(entity.NotifyLevelError, "Giving up retrying load to sink for spec ID %s, after %d attempts, transformed event(s): %+v", e.StreamId(), loadAttempts, transformed)
 		result.Status = entity.ExecutorStatusRetriesExhausted
 		// From here, it's up to each extractor to handle DLQ logic
 	}
@@ -268,12 +268,12 @@ func (e *Executor) loadToSink(ctx context.Context, transformed []*entity.Transfo
 
 func (e *Executor) shuttingDown(ctx context.Context, result entity.EventProcessingResult) bool {
 	if ctx.Err() == context.Canceled {
-		e.notifier.Notify(entity.NotifyLevelInfo, "context canceled during StreamLoad, err: %v", result.Error)
+		e.notifier.Notify(entity.NotifyLevelInfo, "Context canceled during StreamLoad, err: %v", result.Error)
 		return true
 	}
 
 	if result.Error == entity.ErrEntityShutdownRequested {
-		e.notifier.Notify(entity.NotifyLevelInfo, "loader requested shutdown during StreamLoad")
+		e.notifier.Notify(entity.NotifyLevelInfo, "Loader requested shutdown during StreamLoad")
 		return true
 	}
 	return false
@@ -282,7 +282,7 @@ func (e *Executor) shuttingDown(ctx context.Context, result entity.EventProcessi
 func (e *Executor) processEventExit() {
 	// Protection against badly written loader/sink plugins or external hook logic
 	if r := recover(); r != nil {
-		e.notifier.Notify(entity.NotifyLevelError, "panic (%v) in ProcessEvent() for spec %s", r, e.stream.Spec().JSON())
+		e.notifier.Notify(entity.NotifyLevelError, "Panic (%v) in ProcessEvent() for spec %s", r, e.stream.Spec().JSON())
 	}
 }
 
