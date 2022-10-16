@@ -76,23 +76,28 @@ func (t *Transformer) Transform(
 }
 
 func (t *Transformer) shouldExclude(event []byte, transformed *[]*entity.Transformed) (exclude bool) {
+	var value string
 
 	for _, filter := range t.spec.Transform.ExcludeEventsWith {
 
 		valueToCheck := gjson.GetBytes(event, filter.Key)
+
 		if !valueToCheck.Exists() {
-			if excludeIfEmpty(filter.ValueIsEmpty) {
-				return true
-			}
-			continue
+			value = ""
+		} else {
+			value = valueToCheck.String()
 		}
-		value := valueToCheck.String()
+
+		if excludeIfEmpty(value, filter.ValueIsEmpty) {
+			return true
+		}
 
 		if len(filter.Values) > 0 {
 			exclude = excludeIfInBlacklist(value, filter.Values)
 		} else if len(filter.ValuesNotIn) > 0 {
 			exclude = excludeIfNotInWhitelist(value, filter.ValuesNotIn)
 		}
+		
 		if exclude {
 			break
 		}
@@ -100,10 +105,10 @@ func (t *Transformer) shouldExclude(event []byte, transformed *[]*entity.Transfo
 	return
 }
 
-func excludeIfEmpty(filterValueIsEmpty *bool) bool {
+func excludeIfEmpty(value string, filterValueIsEmpty *bool) bool {
 	if filterValueIsEmpty != nil {
 		if *filterValueIsEmpty {
-			return true
+			return value == ""
 		}
 	}
 	return false
