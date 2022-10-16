@@ -679,4 +679,24 @@ func TestTransformerExcludeEventsWhitelist(t *testing.T) {
 	output, err = transformer.Transform(context.Background(), coolEventFromUnreliableService, &retryable)
 	assert.Nil(t, output)
 	assert.NoError(t, err)
+
+	emptyFieldEvent := []byte(`
+	{
+  		"name": ""
+	}`)
+
+	// Event should be excluded (output == nil, err == nil)
+	output, err = transformer.Transform(context.Background(), emptyFieldEvent, &retryable)
+	assert.Nil(t, output)
+	assert.NoError(t, err)
+
+	missingFieldEvent := []byte(`
+	{
+  		"some": "stuff"
+	}`)
+
+	// Event should be excluded (output == nil, err == nil)
+	output, err = transformer.Transform(context.Background(), missingFieldEvent, &retryable)
+	assert.Nil(t, output)
+	assert.NoError(t, err)
 }
