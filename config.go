@@ -15,14 +15,15 @@ const (
 
 // Config needs to be created with NewConfig() and filled in with config as applicable
 // for the intended setup, and provided in the call to geist.New().
-//
-// All config fields are optional.
+// All config fields are optional. See individual struct types for documentation.
 type Config struct {
 	Registry    SpecRegistryConfig
 	AdminStream AdminStreamConfig
 	Ops         OpsConfig
 	Hooks       HookConfig
 
+	// Extractors and Loaders are added to the config with Config.RegisterExctractorType()
+	// and Config.RegisterLoaderType().
 	extractors entity.ExtractorFactories
 	loaders    entity.LoaderFactories
 }

@@ -345,7 +345,37 @@ Geist sends important and informational log events to a notification channel acc
 If usage of the notification channel is not needed, Geist can also be configured to perform standard logging of those events on its native format. This can be enabled by setting `Config.Ops.Log` to true.
 
 ### Metrics
-Event processing metrics can be retrieved with `geist.Metrics()`.
+Real-time event processing metrics can be retrieved with `geist.Metrics()`. The following metrics are provided per stream ID:
+```go
+type Metrics struct {
+
+	// Total number of events sent to Executor's ProcessEvent() by the Extractor,
+	// regardless of the outcome of downstream processing.
+	EventsProcessed int64
+
+	// Total time spent by Executor processing all extracted events
+	EventProcessingTimeMicros int64
+
+	// Total number of event batches sent from Extractor to Sink loader via Executor
+	Microbatches int64
+
+	// Total amount of event data processed (as sent from Extractor)
+	BytesProcessed int64
+
+	// Total number of events successfully processed by the sink.
+	EventsStoredInSink int64
+
+	// Total time spent ingesting transformed events in the sink successfully
+	SinkProcessingTimeMicros int64
+
+	// Total number of successfull calls to the Sink's StreamLoad method
+	SinkOperations int64
+
+	// Total amount of data successfully ingested
+	BytesIngested int64
+}
+```
+
 
 ## Limitations and improvement areas
 Although Geist has been run in production with heavy load, no data-loss, and zero downtime for ~two years, it makes no guarantees that all combinations of stream spec options will work fully in all cases.

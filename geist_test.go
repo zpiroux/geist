@@ -149,7 +149,7 @@ func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing
 		AdminSpec: {EventsProcessed: 0, EventsStoredInSink: 0},
 		RegSpec:   {EventsProcessed: 0, EventsStoredInSink: 0},
 	}
-	assert.Equal(t, expectedMetrics, geist.Metrics())
+	assertEqualMetrics(t, expectedMetrics, geist.Metrics())
 
 	// Test register valid specs
 	id1, err = geist.RegisterStream(ctx, testSpec1)
@@ -157,29 +157,29 @@ func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing
 	assert.Equal(t, TestSpec1, id1)
 	time.Sleep(2 * time.Second)
 	expectedMetrics = map[string]entity.Metrics{
-		AdminSpec: {EventsProcessed: 1, EventsStoredInSink: 1},
-		RegSpec:   {EventsProcessed: 1, EventsStoredInSink: 1},
+		AdminSpec: {EventsProcessed: 1, Microbatches: 1, EventsStoredInSink: 1, SinkOperations: 1},
+		RegSpec:   {EventsProcessed: 1, Microbatches: 1, EventsStoredInSink: 1, SinkOperations: 1},
 		TestSpec1: {EventsProcessed: 0, EventsStoredInSink: 0},
 	}
-	assert.Equal(t, expectedMetrics, geist.Metrics())
+	assertEqualMetrics(t, expectedMetrics, geist.Metrics())
 
 	id2, err = geist.RegisterStream(ctx, testSpec2)
 	assert.NoError(t, err)
 	assert.Equal(t, TestSpec2, id2)
 	time.Sleep(time.Second)
 	expectedMetrics = map[string]entity.Metrics{
-		AdminSpec: {EventsProcessed: 2, EventsStoredInSink: 2},
-		RegSpec:   {EventsProcessed: 2, EventsStoredInSink: 2},
+		AdminSpec: {EventsProcessed: 2, Microbatches: 2, EventsStoredInSink: 2, SinkOperations: 2},
+		RegSpec:   {EventsProcessed: 2, Microbatches: 2, EventsStoredInSink: 2, SinkOperations: 2},
 		TestSpec1: {EventsProcessed: 0, EventsStoredInSink: 0},
 		TestSpec2: {EventsProcessed: 0, EventsStoredInSink: 0},
 	}
-	assert.Equal(t, expectedMetrics, geist.Metrics())
+	assertEqualMetrics(t, expectedMetrics, geist.Metrics())
 
 	// Test retrieving specs
 	specs, err := geist.GetStreamSpecs(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(specs))
-	assert.Equal(t, expectedMetrics, geist.Metrics())
+	assertEqualMetrics(t, expectedMetrics, geist.Metrics())
 
 	specBytesOut, err := geist.GetStreamSpec(TestSpec1)
 	assert.NoError(t, err)
@@ -214,12 +214,12 @@ func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing
 	assert.Equal(t, "<noResourceId>", eventId)
 	assert.NoError(t, err)
 	expectedMetrics = map[string]entity.Metrics{
-		AdminSpec: {EventsProcessed: 2, EventsStoredInSink: 2},
-		RegSpec:   {EventsProcessed: 2, EventsStoredInSink: 2},
-		TestSpec1: {EventsProcessed: 1, EventsStoredInSink: 1},
-		TestSpec2: {EventsProcessed: 1, EventsStoredInSink: 1},
+		AdminSpec: {EventsProcessed: 2, Microbatches: 2, EventsStoredInSink: 2, SinkOperations: 2},
+		RegSpec:   {EventsProcessed: 2, Microbatches: 2, EventsStoredInSink: 2, SinkOperations: 2},
+		TestSpec1: {EventsProcessed: 1, Microbatches: 1, EventsStoredInSink: 1, SinkOperations: 1},
+		TestSpec2: {EventsProcessed: 1, Microbatches: 1, EventsStoredInSink: 1, SinkOperations: 1},
 	}
-	assert.Equal(t, expectedMetrics, geist.Metrics())
+	assertEqualMetrics(t, expectedMetrics, geist.Metrics())
 
 	// Test Publish directly on to Registry stream not allowed
 	regStreamId := RegSpec
@@ -236,13 +236,27 @@ func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing
 	assert.NoError(t, err)
 
 	expectedMetrics = map[string]entity.Metrics{
-		AdminSpec: {EventsProcessed: 2, EventsStoredInSink: 2},
-		RegSpec:   {EventsProcessed: 2, EventsStoredInSink: 2},
-		TestSpec1: {EventsProcessed: 1, EventsStoredInSink: 1},
-		TestSpec2: {EventsProcessed: 1, EventsStoredInSink: 1},
+		AdminSpec: {EventsProcessed: 2, Microbatches: 2, EventsStoredInSink: 2, SinkOperations: 2},
+		RegSpec:   {EventsProcessed: 2, Microbatches: 2, EventsStoredInSink: 2, SinkOperations: 2},
+		TestSpec1: {EventsProcessed: 1, Microbatches: 1, EventsStoredInSink: 1, SinkOperations: 1},
+		TestSpec2: {EventsProcessed: 1, Microbatches: 1, EventsStoredInSink: 1, SinkOperations: 1},
 	}
-	assert.Equal(t, expectedMetrics, geist.Metrics())
+	metrics := geist.Metrics()
+	assertEqualMetrics(t, expectedMetrics, metrics)
+	for stream, m := range metrics {
+		assert.True(t, m.BytesProcessed > 0, stream)
+		assert.True(t, m.BytesIngested > 0, stream)
+	}
 	wg.Done()
+}
+
+func assertEqualMetrics(t *testing.T, expected, actual map[string]entity.Metrics) {
+	for stream, metrics := range actual {
+		assert.Equal(t, expected[stream].EventsProcessed, metrics.EventsProcessed, stream)
+		assert.Equal(t, expected[stream].EventsStoredInSink, metrics.EventsStoredInSink, stream)
+		assert.Equal(t, expected[stream].Microbatches, metrics.Microbatches, stream)
+		assert.Equal(t, expected[stream].SinkOperations, metrics.SinkOperations, stream)
+	}
 }
 
 func TestEnrichment(t *testing.T) {
