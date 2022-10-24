@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -36,12 +37,24 @@ type Executor struct {
 	id                 string
 	notifier           *notify.Notifier
 	shutdownInProgress bool // TODO: not important but add mutex on this
+	executorMetrics    ProcessingMetrics
+	sinkMetrics        ProcessingMetrics
+}
 
-	// Number of events processed. Although we could use uint64 here, we can still have
-	// each executor running almost 3 million years (assuming 100000 events/second) using
-	// int64, before overflowing, so should be enough :)
-	eventsProcessed    int64
-	eventsStoredInSink int64
+// Event processing metrics. Using int64 is safe here:
+// Total Events processed will work for 3 million years if having 100k events/sec
+// Total processing DurationMicros will work for 290k years
+// Total Bytes processed will work for 2856 years if ingesting at 100 MiB/sec
+type ProcessingMetrics struct {
+	Events         int64
+	DurationMicros int64
+	Bytes          int64
+	Operations     int64
+}
+
+func (p ProcessingMetrics) String() string {
+	out, _ := json.Marshal(p)
+	return string(out)
 }
 
 func NewExecutor(config Config, stream igeist.Stream) *Executor {
@@ -90,8 +103,14 @@ func (e *Executor) Stream() igeist.Stream {
 
 func (e *Executor) Metrics() entity.Metrics {
 	return entity.Metrics{
-		EventsProcessed:    atomic.LoadInt64(&e.eventsProcessed),
-		EventsStoredInSink: atomic.LoadInt64(&e.eventsStoredInSink),
+		EventsProcessed:           atomic.LoadInt64(&e.executorMetrics.Events),
+		EventProcessingTimeMicros: atomic.LoadInt64(&e.executorMetrics.DurationMicros),
+		Microbatches:              atomic.LoadInt64(&e.executorMetrics.Operations),
+		BytesProcessed:            atomic.LoadInt64(&e.executorMetrics.Bytes),
+		EventsStoredInSink:        atomic.LoadInt64(&e.sinkMetrics.Events),
+		SinkProcessingTimeMicros:  atomic.LoadInt64(&e.sinkMetrics.DurationMicros),
+		SinkOperations:            atomic.LoadInt64(&e.sinkMetrics.Operations),
+		BytesIngested:             atomic.LoadInt64(&e.sinkMetrics.Bytes),
 	}
 }
 
@@ -131,7 +150,7 @@ func (e *Executor) Run(ctx context.Context, wg *sync.WaitGroup) {
 		break
 	}
 
-	e.notifier.Notify(entity.NotifyLevelInfo, "Executor finished. Events processed: %d, stored in sink: %d", e.eventsProcessed, e.eventsStoredInSink)
+	e.notifier.Notify(entity.NotifyLevelInfo, "Executor finished. Executor metrics: %s, Sink metrics: %s", e.executorMetrics, e.sinkMetrics)
 }
 
 func (e *Executor) runExit(wg *sync.WaitGroup) {
@@ -152,11 +171,12 @@ func (e *Executor) runExit(wg *sync.WaitGroup) {
 func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) entity.EventProcessingResult {
 
 	var (
-		result      = entity.EventProcessingResult{Status: entity.ExecutorStatusError}
-		transformed []*entity.Transformed
+		result        = entity.EventProcessingResult{Status: entity.ExecutorStatusError}
+		transformed   []*entity.Transformed
+		bytesIngested int64
 	)
 
-	defer e.processEventExit()
+	defer e.processEventExit(time.Now().UnixMicro())
 
 	if e.shutdownInProgress {
 		e.notifier.Notify(entity.NotifyLevelWarn, "Rejecting event processing due to shutdown in progress, rejected events: %v", events)
@@ -166,9 +186,10 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 	}
 
 	for _, event := range events {
-		atomic.AddInt64(&e.eventsProcessed, 1)
-		if e.eventsProcessed%int64(e.config.EventLogInterval) == 0 {
-			e.notifier.Notify(entity.NotifyLevelInfo, "[metric] nb events processed: %d, stored in sink: %d", e.eventsProcessed, e.eventsStoredInSink)
+		atomic.AddInt64(&e.executorMetrics.Events, 1)
+		atomic.AddInt64(&e.executorMetrics.Bytes, int64(len(event.Data)))
+		if e.executorMetrics.Events%int64(e.config.EventLogInterval) == 0 {
+			e.notifier.Notify(entity.NotifyLevelInfo, "[metric] nb events processed: %d, stored in sink: %d", e.executorMetrics.Events, e.sinkMetrics.Events)
 		}
 
 		// Apply injection of stream processing logic if requested
@@ -210,7 +231,10 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 			e.notifier.Notify(entity.NotifyLevelDebug, "Event transformed into: %v", transEvent)
 		}
 
-		transformed = append(transformed, transEvent...)
+		if transEvent != nil {
+			bytesIngested += int64(len(event.Data))
+			transformed = append(transformed, transEvent...)
+		}
 	}
 
 	if len(transformed) == 0 {
@@ -218,20 +242,29 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 		return result
 	}
 
-	return e.loadToSink(ctx, transformed)
+	result = e.loadToSink(ctx, transformed)
+
+	if result.Error == nil {
+		atomic.AddInt64(&e.sinkMetrics.Bytes, bytesIngested)
+	}
+	return result
 }
 
 func (e *Executor) loadToSink(ctx context.Context, transformed []*entity.Transformed) (result entity.EventProcessingResult) {
+
 	loadAttempts := 0
 	backoffDuration := defaultInitialStreamLoadRetryBackoffDuration
 	result.Status = entity.ExecutorStatusError
 
 	for ; loadAttempts <= e.maxRetryAttempts(); loadAttempts++ {
 
+		startTime := time.Now().UnixMicro()
 		result.ResourceId, result.Error, result.Retryable = e.stream.Loader().StreamLoad(ctx, transformed)
 
 		if result.Error == nil {
-			atomic.AddInt64(&e.eventsStoredInSink, int64(len(transformed)))
+			atomic.AddInt64(&e.sinkMetrics.Events, int64(len(transformed)))
+			atomic.AddInt64(&e.sinkMetrics.DurationMicros, time.Now().UnixMicro()-startTime)
+			atomic.AddInt64(&e.sinkMetrics.Operations, 1)
 			result.Status = entity.ExecutorStatusSuccessful
 			break
 		}
@@ -279,7 +312,11 @@ func (e *Executor) shuttingDown(ctx context.Context, result entity.EventProcessi
 	return false
 }
 
-func (e *Executor) processEventExit() {
+func (e *Executor) processEventExit(startTime int64) {
+
+	atomic.AddInt64(&e.executorMetrics.DurationMicros, time.Now().UnixMicro()-startTime)
+	atomic.AddInt64(&e.executorMetrics.Operations, 1)
+
 	// Protection against badly written loader/sink plugins or external hook logic
 	if r := recover(); r != nil {
 		e.notifier.Notify(entity.NotifyLevelError, "Panic (%v) in ProcessEvent() for spec %s", r, e.stream.Spec().JSON())

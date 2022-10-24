@@ -97,7 +97,7 @@ func (t *Transformer) shouldExclude(event []byte, transformed *[]*entity.Transfo
 		} else if len(filter.ValuesNotIn) > 0 {
 			exclude = excludeIfNotInWhitelist(value, filter.ValuesNotIn)
 		}
-		
+
 		if exclude {
 			break
 		}

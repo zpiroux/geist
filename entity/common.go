@@ -33,17 +33,41 @@ type Config struct {
 // geist.Metrics()
 type Metrics struct {
 
-	// Number of events that were sent to Executor's ProcessEvent() by the Extractor,
+	// Total number of events sent to Executor's ProcessEvent() by the Extractor,
 	// regardless of the outcome of downstream processing.
 	EventsProcessed int64
 
-	// Number of events that were successfully processed by the sink.
+	// Total time spent by Executor processing all extracted events
+	EventProcessingTimeMicros int64
+
+	// Total number of event batches sent from Extractor to Sink loader via Executor
+	Microbatches int64
+
+	// Total amount of event data processed (as sent from Extractor)
+	BytesProcessed int64
+
+	// Total number of events successfully processed by the sink.
 	EventsStoredInSink int64
+
+	// Total time spent ingesting transformed events in the sink successfully
+	SinkProcessingTimeMicros int64
+
+	// Total number of successfull calls to the Sink's StreamLoad method
+	SinkOperations int64
+
+	// Total amount of data successfully ingested
+	BytesIngested int64
 }
 
 func (m *Metrics) Reset() {
 	m.EventsProcessed = 0
+	m.EventProcessingTimeMicros = 0
+	m.Microbatches = 0
+	m.BytesProcessed = 0
 	m.EventsStoredInSink = 0
+	m.SinkProcessingTimeMicros = 0
+	m.SinkOperations = 0
+	m.BytesIngested = 0
 }
 
 // Some Stream ETL Entities need different configurations based on environements.

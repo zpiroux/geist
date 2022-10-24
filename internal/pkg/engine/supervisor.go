@@ -127,9 +127,18 @@ func (s *Supervisor) Metrics() map[string]entity.Metrics {
 
 		metricsPerStream.Reset()
 		for _, executor := range executors {
+			if executor.Stream().Spec().IsDisabled() {
+				continue
+			}
 			m := executor.Metrics()
 			metricsPerStream.EventsProcessed += m.EventsProcessed
+			metricsPerStream.EventProcessingTimeMicros += m.EventProcessingTimeMicros
+			metricsPerStream.Microbatches += m.Microbatches
+			metricsPerStream.BytesProcessed += m.BytesProcessed
 			metricsPerStream.EventsStoredInSink += m.EventsStoredInSink
+			metricsPerStream.SinkProcessingTimeMicros += m.SinkProcessingTimeMicros
+			metricsPerStream.SinkOperations += m.SinkOperations
+			metricsPerStream.BytesIngested += m.BytesIngested
 		}
 		metrics[streamId] = metricsPerStream
 	}
