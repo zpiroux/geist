@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -172,7 +172,7 @@ func (m *MockSinkExtractor) SendToSource(ctx context.Context, eventData any) (st
 
 func (m *MockSinkExtractor) loadEventIntoSink(t *testing.T, eventInFile string) {
 	var retryable bool
-	fileBytes, err := ioutil.ReadFile(eventInFile)
+	fileBytes, err := os.ReadFile(eventInFile)
 	assert.NoError(t, err)
 	output, err := m.Transformer.Transform(context.Background(), fileBytes, &retryable)
 	assert.NoError(t, err)

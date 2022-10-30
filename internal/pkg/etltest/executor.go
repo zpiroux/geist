@@ -70,6 +70,6 @@ func (r *MockExecutor) Metrics() entity.Metrics {
 	return entity.Metrics{}
 }
 
-func (e *MockExecutor) Shutdown() {
+func (e *MockExecutor) Shutdown(ctx context.Context) {
 	// Nothing to mock here
 }

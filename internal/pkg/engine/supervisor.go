@@ -146,7 +146,7 @@ func (s *Supervisor) Metrics() map[string]entity.Metrics {
 }
 
 // Shutdown is called by the service during shutdown
-func (s *Supervisor) Shutdown() {
+func (s *Supervisor) Shutdown(ctx context.Context) {
 	s.notifier.Notify(entity.NotifyLevelInfo, "Shutting down")
 }
 
@@ -171,7 +171,7 @@ func (s *Supervisor) createStreams(ctx context.Context, spec *entity.Spec) error
 	existingExecutors, exists := (*executorMap)[spec.Id()]
 	if exists && existingExecutors != nil {
 		for _, executor := range existingExecutors {
-			executor.Shutdown()
+			executor.Shutdown(ctx)
 		}
 		(*executorMap)[spec.Id()] = nil
 	}
@@ -203,7 +203,7 @@ func (s *Supervisor) shutdownStream(ctx context.Context, streamId string) {
 
 	if exists && existingExecutors != nil {
 		for _, executor := range existingExecutors {
-			executor.Shutdown()
+			executor.Shutdown(ctx)
 		}
 		delete(*executors, streamId)
 	} else {
@@ -227,7 +227,7 @@ func (s *Supervisor) RegisterExecutor(ctx context.Context, executor igeist.Execu
 	executors, exists := (*executorMap)[id]
 	if exists && executors != nil {
 		for _, executor := range executors {
-			executor.Shutdown()
+			executor.Shutdown(ctx)
 		}
 	}
 	executors = append(executors, executor)
@@ -321,7 +321,7 @@ func (a *AdminEventHandler) StreamLoad(ctx context.Context, data []*entity.Trans
 	}
 }
 
-func (a *AdminEventHandler) Shutdown() {
+func (a *AdminEventHandler) Shutdown(ctx context.Context) {
 	// Nothing to shut down
 }
 

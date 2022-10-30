@@ -30,8 +30,8 @@ type Config struct {
 	Entity          assembly.Config
 }
 
-func (c Config) Close() error {
-	return c.Entity.Close()
+func (c Config) Close(ctx context.Context) error {
+	return c.Entity.Close(ctx)
 }
 
 func New(ctx context.Context, cfg Config) (*Service, error) {
@@ -75,8 +75,8 @@ func (s *Service) AwaitReady() {
 }
 
 func (s *Service) Shutdown(ctx context.Context) error {
-	err := s.config.Close()
-	s.supervisor.Shutdown()
+	err := s.config.Close(ctx)
+	s.supervisor.Shutdown(ctx)
 	return err
 }
 

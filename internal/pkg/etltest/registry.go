@@ -3,7 +3,7 @@ package etltest
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"sync"
 
 	"github.com/zpiroux/geist/entity"
@@ -46,7 +46,7 @@ func SpecSpecInMem() *entity.Spec {
 func GetAllSpecsRaw(testDirPath string) map[string][]byte {
 	specs := make(map[string][]byte)
 	for key, filePath := range tstreamSpecs {
-		fileBytes, err := ioutil.ReadFile(testDirPath + filePath)
+		fileBytes, err := os.ReadFile(testDirPath + filePath)
 		if err != nil || fileBytes == nil {
 			panic("couldn't read all test spec files, err: " + err.Error())
 		}
@@ -130,7 +130,7 @@ func (r *StreamRegistry) Validate(specBytes []byte) (igeist.Spec, error) {
 func (r *StreamRegistry) registerSpec(ctx context.Context, id string, path string) error {
 
 	path = r.testDirPath + path
-	fileBytes, err := ioutil.ReadFile(path)
+	fileBytes, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
@@ -171,6 +171,6 @@ func (r *StreamRegistry) Stream() igeist.Stream {
 	return r.executor.Stream()
 }
 
-func (r *StreamRegistry) Shutdown() {
+func (r *StreamRegistry) Shutdown(ctx context.Context) {
 	// Nothing to mock here
 }

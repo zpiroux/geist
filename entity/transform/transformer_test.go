@@ -3,7 +3,7 @@ package transform
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -36,7 +36,7 @@ func TestTransformer(t *testing.T) {
 	printTestOutput = false
 
 	// Validate general parsing and handling of specs and events
-	fileBytes, err = ioutil.ReadFile(testSpecDir + "kafkasrc-bigtablesink-multitable-session.json")
+	fileBytes, err = os.ReadFile(testSpecDir + "kafkasrc-bigtablesink-multitable-session.json")
 	assert.NoError(t, err)
 	spec, err := entity.NewSpec(fileBytes)
 	assert.NoError(t, err)
@@ -44,13 +44,13 @@ func TestTransformer(t *testing.T) {
 
 	transformer := NewTransformer(spec)
 
-	fileBytes, _ = ioutil.ReadFile(testEventDir + "foo_session_begin_ex1.json")
+	fileBytes, _ = os.ReadFile(testEventDir + "foo_session_begin_ex1.json")
 	output, err = transformer.Transform(context.Background(), fileBytes, &retryable)
 	assert.NoError(t, err)
 	require.NotNil(t, output)
 	tPrintf(tPrintfTransfOutputFmt, output)
 
-	fileBytes, _ = ioutil.ReadFile(testEventDir + "foo_session_end_ex1.json")
+	fileBytes, _ = os.ReadFile(testEventDir + "foo_session_end_ex1.json")
 	output, err = transformer.Transform(context.Background(), fileBytes, &retryable)
 	assert.NoError(t, err)
 	require.NotNil(t, output)
@@ -74,7 +74,7 @@ func TestTransformerRegexp(t *testing.T) {
 
 	// RegExp spec 1
 	sdJson := "{\"insertId\":\"a6bf3a8d-4fe0-40d9-bfce-0ebe5bdbdb86\",\"labels\":{\"foo\":\"bar\"},\"logName\":\"fooservice/accesslog\",\"rcvTimestamp\":\"2020-06-16T12:06:31.869709059Z\",\"textPayload\":\"cust1-loc1.somesite.com|11.222.123.123|https://<lots more stuff>|<ua info...>|-|-|-|[17/Jun/2020:09:10:25 +0200]<|GET /some/reqPath;more-stuff... HTTP/1.1|200|996|19\",\"timestamp\":\"2020-06-16T12:06:26.723709116Z\"}"
-	fileBytes, err = ioutil.ReadFile(testSpecDir + "pubsubsrc-regexp-reqs-voidsink.json")
+	fileBytes, err = os.ReadFile(testSpecDir + "pubsubsrc-regexp-reqs-voidsink.json")
 	assert.NoError(t, err)
 	spec, err := entity.NewSpec(fileBytes)
 	assert.NoError(t, err)
@@ -97,7 +97,7 @@ func TestTransformerRegexp(t *testing.T) {
 
 	// RegExp spec 2
 	sdJson = "{\"insertId\":\"d5696f71-9202-45e4-ba9d-40d467fb7516\",\"labels\":{\"foo\":\"bar\"},\"logName\":\"fooservice/accesslog\",\"rcvTimestamp\":\"2020-06-16T12:06:31.869709059Z\",\"textPayload\":\"2020-07-01 16:06:57,695 +0200 INFO  [LOG_cust2.BarService.getUserInfo] (HTTP-126) Invocation took: 493 ms (492835106 ns)\",\"timestamp\":\"2020-06-16T12:06:26.723709116Z\"}"
-	fileBytes, err = ioutil.ReadFile(testSpecDir + "pubsubsrc-regexp-barusage-voidsink.json")
+	fileBytes, err = os.ReadFile(testSpecDir + "pubsubsrc-regexp-barusage-voidsink.json")
 	assert.NoError(t, err)
 	spec, err = entity.NewSpec(fileBytes)
 	assert.NoError(t, err)
@@ -382,7 +382,7 @@ func TestTransformerArrayConditionals(t *testing.T) {
 
 	printTestOutput = false
 
-	fileBytes, err = ioutil.ReadFile(testSpecDir + "kafkasrc-bigtablesink-xch-eur.json")
+	fileBytes, err = os.ReadFile(testSpecDir + "kafkasrc-bigtablesink-xch-eur.json")
 	assert.NoError(t, err)
 	spec, err := entity.NewSpec(fileBytes)
 	assert.NoError(t, err)
@@ -390,7 +390,7 @@ func TestTransformerArrayConditionals(t *testing.T) {
 
 	transformer := NewTransformer(spec)
 
-	fileBytes, _ = ioutil.ReadFile(testEventDir + "xch_rates_updated.json")
+	fileBytes, _ = os.ReadFile(testEventDir + "xch_rates_updated.json")
 	output, err = transformer.Transform(context.Background(), fileBytes, &retryable)
 	assert.NoError(t, err)
 	require.NotNil(t, output)
@@ -465,14 +465,14 @@ func TestTransformerTransformedItemsFromJsonArray(t *testing.T) {
 		retryable bool
 		output    []*entity.Transformed
 	)
-	fileBytes, err = ioutil.ReadFile(testSpecDir + "kafkasrc-bigtablesink-featurex.json")
+	fileBytes, err = os.ReadFile(testSpecDir + "kafkasrc-bigtablesink-featurex.json")
 	assert.NoError(t, err)
 	spec, err := entity.NewSpec(fileBytes)
 	assert.NoError(t, err)
 	assert.NotNil(t, spec)
 
 	transformer := NewTransformer(spec)
-	fileBytes, _ = ioutil.ReadFile(testEventDir + "featurex_config_snapshot.json")
+	fileBytes, _ = os.ReadFile(testEventDir + "featurex_config_snapshot.json")
 	output, err = transformer.Transform(context.Background(), fileBytes, &retryable)
 	items = output[0].Data["arrayItemsMapId"].(map[string]any)
 	assert.NoError(t, err)

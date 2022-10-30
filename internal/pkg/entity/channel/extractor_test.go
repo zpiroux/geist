@@ -3,7 +3,7 @@ package channel
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -96,7 +96,7 @@ func newTestExtractorFromFile(t *testing.T, specId string) *extractor {
 
 func getTestSpec(specFile string) (*entity.Spec, error) {
 	tPrintf("opening file %s\n", specFile)
-	fileBytes, err := ioutil.ReadFile(testSpecDir + specFile)
+	fileBytes, err := os.ReadFile(testSpecDir + specFile)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func getTestSpec(specFile string) (*entity.Spec, error) {
 }
 
 func getTestEvent(eventFile string) []byte {
-	fileBytes, _ := ioutil.ReadFile(testEventDir + eventFile)
+	fileBytes, _ := os.ReadFile(testEventDir + eventFile)
 	return fileBytes
 }
 

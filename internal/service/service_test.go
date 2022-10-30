@@ -1,7 +1,7 @@
 package service
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,7 +43,7 @@ func TestInitServiceConfig(t *testing.T) {
 
 	// Test correct values for lib client provided (custom) Reg Spec
 	s = &Service{}
-	fileBytes, err := ioutil.ReadFile("../../test/specs/pubsubsrc-firestoresink-regspec.json")
+	fileBytes, err := os.ReadFile("../../test/specs/pubsubsrc-firestoresink-regspec.json")
 	assert.NoError(t, err)
 	c.Registry.StorageMode = admin.RegStorageCustom
 	c.Registry.RegSpec = fileBytes
