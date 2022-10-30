@@ -19,5 +19,5 @@ type Executor interface {
 	// used for key lookups of the event (e.g. row-key for BigTable), and will be used as the resource ID when
 	// using API as Source.
 	ProcessEvent(ctx context.Context, events []entity.Event) entity.EventProcessingResult
-	Shutdown()
+	Shutdown(ctx context.Context)
 }

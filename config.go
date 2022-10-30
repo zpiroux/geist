@@ -52,11 +52,11 @@ type SpecRegistryConfig struct {
 // Providing a custom admin spec is advanced usage and should be done with care.
 // It is only required to be filled in if diverting from default behavior, which is the following:
 //
-// * If SpecRegistryConfig.StorageMode is set to "inmemory" (default), the admin stream is disabled
-//   (cross-pod sync not needed)
+//   - If SpecRegistryConfig.StorageMode is set to "inmemory" (default), the admin stream is disabled
+//     (cross-pod sync not needed)
 //
-// * If SpecRegistryConfig.StorageMode is set to "native" (firestore) or "custom", the admin stream
-//   will use GCP Pubsub for event propagation (pubsub set as its stream source type).
+//   - If SpecRegistryConfig.StorageMode is set to "native" (firestore) or "custom", the admin stream
+//     will use GCP Pubsub for event propagation (pubsub set as its stream source type).
 //
 // For complete customization (e.g. running in AWS or Azure), set StorageMode to "custom" and provide
 // both a Stream and an Admin Spec, with appropriate sink connectors loaded.

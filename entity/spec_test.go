@@ -2,7 +2,7 @@ package entity
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,7 +15,7 @@ import (
 
 func TestSpecModel(t *testing.T) {
 
-	fileBytes, err := ioutil.ReadFile("../test/specs/kafkasrc-bigtablesink-multitable-session.json")
+	fileBytes, err := os.ReadFile("../test/specs/kafkasrc-bigtablesink-multitable-session.json")
 	assert.NoError(t, err)
 	spec, err := NewSpec(fileBytes)
 	assert.NoError(t, err)
@@ -24,7 +24,7 @@ func TestSpecModel(t *testing.T) {
 	err = spec.Validate()
 	assert.NoError(t, err)
 
-	fileBytes, err = ioutil.ReadFile("../test/specs/pubsubsrc-kafkasink-foologs.json")
+	fileBytes, err = os.ReadFile("../test/specs/pubsubsrc-kafkasink-foologs.json")
 	assert.NoError(t, err)
 	spec, err = NewSpec(fileBytes)
 	assert.NoError(t, err)
@@ -71,7 +71,7 @@ func TestSpecModel(t *testing.T) {
 	assert.Equal(t, "my-cool-env", string(topicSpec.Env))
 
 	// Validate regexp compile
-	fileBytes, err = ioutil.ReadFile("../test/specs/pubsubsrc-regexp-reqs-voidsink.json")
+	fileBytes, err = os.ReadFile("../test/specs/pubsubsrc-regexp-reqs-voidsink.json")
 	assert.NoError(t, err)
 	spec, err = NewSpec(fileBytes)
 	require.NotNil(t, spec)

@@ -323,7 +323,7 @@ func (e *Executor) processEventExit(startTime int64) {
 	}
 }
 
-func (e *Executor) Shutdown() {
+func (e *Executor) Shutdown(ctx context.Context) {
 	e.shutdownInProgress = true // TODO: protect with mutex (not urgent)
 	e.notifier.Notify(entity.NotifyLevelInfo, "Shutting down")
 
@@ -334,7 +334,7 @@ func (e *Executor) Shutdown() {
 		e.notifier.Notify(entity.NotifyLevelWarn, "Shutdown request received before started running")
 	}
 
-	e.stream.Loader().Shutdown()
+	e.stream.Loader().Shutdown(ctx)
 }
 
 func (e *Executor) maxRetryAttempts() int {

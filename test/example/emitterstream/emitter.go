@@ -31,7 +31,7 @@ func (ef *emitterFactory) NewExtractor(ctx context.Context, c entity.Config) (en
 	return &emitter{spec: c.Spec, emitInterval: interval}, nil
 }
 
-func (ef *emitterFactory) Close() error {
+func (ef *emitterFactory) Close(ctx context.Context) error {
 	log.Println("[emitterFactory] Close() called")
 	return nil
 }

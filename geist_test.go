@@ -365,7 +365,7 @@ func (sef *SillyExtractorFactory) NewExtractor(ctx context.Context, c entity.Con
 	return &sillyExtractor{spec: c.Spec}, nil
 }
 
-func (sef *SillyExtractorFactory) Close() error {
+func (sef *SillyExtractorFactory) Close(ctx context.Context) error {
 	return nil
 }
 
@@ -421,7 +421,7 @@ func (slf *SillyLoaderFactory) NewLoader(ctx context.Context, c entity.Config) (
 func (slf *SillyLoaderFactory) NewSinkExtractor(ctx context.Context, c entity.Config) (entity.Extractor, error) {
 	return nil, nil
 }
-func (slf *SillyLoaderFactory) Close() error {
+func (slf *SillyLoaderFactory) Close(ctx context.Context) error {
 	return nil
 }
 
@@ -434,6 +434,6 @@ func (sl *sillyLoader) StreamLoad(ctx context.Context, data []*entity.Transforme
 	return "resource id based on " + sl.lastEvent, nil, false
 }
 
-func (sl *sillyLoader) Shutdown() {
+func (sl *sillyLoader) Shutdown(ctx context.Context) {
 	// nothing to mock here
 }

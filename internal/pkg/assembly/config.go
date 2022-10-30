@@ -1,6 +1,7 @@
 package assembly
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -14,17 +15,17 @@ type Config struct {
 	Log        bool
 }
 
-func (c Config) Close() error {
+func (c Config) Close(ctx context.Context) error {
 
 	var errs []string
 
 	for _, lf := range c.Loaders {
-		if err := lf.Close(); err != nil {
+		if err := lf.Close(ctx); err != nil {
 			errs = append(errs, err.Error())
 		}
 	}
 	for _, ef := range c.Extractors {
-		if err := ef.Close(); err != nil {
+		if err := ef.Close(ctx); err != nil {
 			errs = append(errs, err.Error())
 		}
 	}

@@ -27,7 +27,7 @@ func (lf *ExtractorFactory) NewExtractor(ctx context.Context, c entity.Config) (
 	return newExtractor(c), nil
 }
 
-func (lf *ExtractorFactory) Close() error {
+func (lf *ExtractorFactory) Close(ctx context.Context) error {
 	return nil
 }
 

@@ -19,7 +19,7 @@ type ExtractorFactory interface {
 	NewExtractor(ctx context.Context, c Config) (Extractor, error)
 
 	// Close is called by Geist after client has called Geist API geist.Shutdown()
-	Close() error
+	Close(ctx context.Context) error
 }
 
 // Extractor is the interface required for stream source extractor implementations
@@ -77,7 +77,6 @@ type Extractor interface {
 //		ExecutorStatusError --> handle error depending on Houe mode in stream spec
 //		ExecutorStatusRetriesExhausted --> normally a shutdown of extractor is an ok action (will be restarted)
 //		ExecutorStatusShutdown --> shut down extractor
-//
 type ProcessEventFunc func(context.Context, []Event) EventProcessingResult
 
 type Event struct {

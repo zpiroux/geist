@@ -33,7 +33,7 @@ func (lf *LoaderFactory) NewSinkExtractor(ctx context.Context, c entity.Config) 
 	return nil, nil
 }
 
-func (lf *LoaderFactory) Close() error {
+func (lf *LoaderFactory) Close(ctx context.Context) error {
 	return nil
 }
 
@@ -155,6 +155,6 @@ func (l *loader) handleSinkMode(data []*entity.Transformed, resourceId string) (
 	return resourceId, nil, false
 }
 
-func (l *loader) Shutdown() {
+func (l *loader) Shutdown(ctx context.Context) {
 	// Nothing to shut down
 }

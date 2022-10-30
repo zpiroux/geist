@@ -159,9 +159,7 @@ type Ops struct {
 	LogEventData bool `json:"logEventData"`
 }
 
-//
 // Source spec
-//
 type Source struct {
 	Type   EntityType   `json:"type"`
 	Config SourceConfig `json:"config"`
@@ -245,9 +243,7 @@ type Property struct {
 	Value string `json:"value"`
 }
 
-//
 // Transform spec
-//
 type Transform struct {
 	// ImplId denotes the Implementation ID (type of Transform implementation).
 	// The GEIST built-in type is named 'native' and is currently the only one supported
@@ -438,9 +434,7 @@ type Field struct {
 	Type string `json:"type,omitempty"`
 }
 
-//
 // Sink spec
-//
 type Sink struct {
 	// Type specifies the type of sink into which data should be loaded.
 	// Important stream constraints are noted below for each sink type where needed.
@@ -678,10 +672,12 @@ type TimePartitioning struct {
 // RowKey specifies how the row-key should be generated for BigTable sinks.
 // If one of the Predefined options are set, that will be used.
 // Currently available Predefined options are:
-//		"timestampIso"
-//		"invertedTimestamp"
-//		"uuid"
-//		"keysInMap"
+//
+//	"timestampIso"
+//	"invertedTimestamp"
+//	"uuid"
+//	"keysInMap"
+//
 // If Predefined is not set, the Keys array should be used to specify which extracted fields
 // from the event should be used.
 // TODO: Add padding config

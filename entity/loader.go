@@ -22,7 +22,7 @@ type LoaderFactory interface {
 	NewSinkExtractor(ctx context.Context, c Config) (Extractor, error)
 
 	// Close is called by Geist after using Geist API geist.Shutdown()
-	Close() error
+	Close(ctx context.Context) error
 }
 
 // Loader interface required for stream sink Loader implementations.
@@ -38,5 +38,5 @@ type Loader interface {
 	StreamLoad(ctx context.Context, data []*Transformed) (string, error, bool)
 
 	// Called by Executor during shutdown of the stream
-	Shutdown()
+	Shutdown(ctx context.Context)
 }

@@ -414,7 +414,7 @@ func (p *PanickingMockLoader) StreamLoad(ctx context.Context, data []*entity.Tra
 	return "nope", nil, false
 }
 
-func (p *PanickingMockLoader) Shutdown() {
+func (p *PanickingMockLoader) Shutdown(ctx context.Context) {
 	// nothing to mock here
 }
 
@@ -553,7 +553,7 @@ func TestExecutorProcessMultiEvent(t *testing.T) {
 		BytesIngested:      eventBytes,
 	}, executor.Metrics())
 
-	executor.Shutdown()
+	executor.Shutdown(context.Background())
 	time.Sleep(time.Second)
 }
 
@@ -584,7 +584,7 @@ func (s *MockLoader_StoreLatest) StreamLoad(ctx context.Context, data []*entity.
 	return properResourceId, nil, false
 }
 
-func (s *MockLoader_StoreLatest) Shutdown() {
+func (s *MockLoader_StoreLatest) Shutdown(ctx context.Context) {
 	// nothing to mock here
 }
 
@@ -595,7 +595,7 @@ func (s *MockLoader_NoError) StreamLoad(ctx context.Context, data []*entity.Tran
 	return properResourceId, nil, false
 }
 
-func (s *MockLoader_NoError) Shutdown() {
+func (s *MockLoader_NoError) Shutdown(ctx context.Context) {
 	// nothing to mock here
 }
 
@@ -607,7 +607,7 @@ func (s *MockLoader_Error) StreamLoad(ctx context.Context, data []*entity.Transf
 	return noResourceId, errors.New("something bad happened"), false
 }
 
-func (s *MockLoader_Error) Shutdown() {
+func (s *MockLoader_Error) Shutdown(ctx context.Context) {
 	// nothing to mock here
 }
 
@@ -618,7 +618,7 @@ func (s *MockLoader_RetryableError) StreamLoad(ctx context.Context, data []*enti
 	return noResourceId, errors.New("something bad happened"), true
 }
 
-func (s *MockLoader_RetryableError) Shutdown() {
+func (s *MockLoader_RetryableError) Shutdown(ctx context.Context) {
 	// nothing to mock here
 }
 

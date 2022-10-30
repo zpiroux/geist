@@ -116,9 +116,10 @@ func (g *Geist) RegisterStream(ctx context.Context, specData []byte) (id string,
 // as the key to be used for key lookups of the event.
 // It is created based on the Sink configuration in the Stream Spec for sink types supporting
 // it, for example:
-// 		Firestore: ID is the generated Firestore entity name, as specified in the entityNameFromIds
-//                 section of the sink spec.
-//		BigTable: ID is the generated row-key, as specified in the rowKey section of the sink spec.
+//
+//			Firestore: ID is the generated Firestore entity name, as specified in the entityNameFromIds
+//	                   section of the sink spec.
+//			BigTable: ID is the generated row-key, as specified in the rowKey section of the sink spec.
 func (g *Geist) Publish(ctx context.Context, streamId string, event []byte) (id string, err error) {
 	if g.service == nil {
 		return id, ErrGeistNotInitialized
@@ -192,14 +193,15 @@ func (g *Geist) Shutdown(ctx context.Context) (err error) {
 
 // Entities returns IDs of all registered Extractors/Loaders for each Source/Sink.
 // The keys for the first map are:
-//		"extractor"
-//		"loader"
+//
+//	"extractor"
+//	"loader"
+//
 // Each of those keys holds the id/name of the source/sink type that have been registered
 //
 // Example of output if marshalled to JSON
 //
-// 		{"extractor":{"source1":true,"source2":true},"loader":{"sink1":true,"sink2":true}}
-//
+//	{"extractor":{"source1":true,"source2":true},"loader":{"sink1":true,"sink2":true}}
 func (g *Geist) Entities() map[string]map[string]bool {
 	return g.service.Entities()
 }

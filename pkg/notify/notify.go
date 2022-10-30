@@ -28,9 +28,10 @@ type Notifier struct {
 }
 
 // New creates a new Notifier. For proper value on the caller func name, set `callerLevel` to:
-//		1 - if the notifying func is immediately above the called Notify()
-//		2 - if the notifying func is two levels above
-//		... etc
+//
+//	1 - if the notifying func is immediately above the called Notify()
+//	2 - if the notifying func is two levels above
+//	... etc
 //
 // The minimum log level to use is set to OS env variable "LOG_LEVEL". If not found or invalid
 // it is set to "INFO".
@@ -71,9 +72,10 @@ func (n *Notifier) SetNotifyLevel(level int) {
 
 // Notify sends the provided data to the provided channel (and optionally log framework),
 // together with additional data depending on notification level:
-//		DEBUG and INFO: name of calling func
-//		WARN: as INFO plus file and line number
-//		ERROR: as WARN plus the full stack trace.
+//
+//	DEBUG and INFO: name of calling func
+//	WARN: as INFO plus file and line number
+//	ERROR: as WARN plus the full stack trace.
 func (n *Notifier) Notify(level int, message string, args ...any) {
 
 	if level < n.minNotifyLevel {

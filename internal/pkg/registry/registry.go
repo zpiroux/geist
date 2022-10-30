@@ -204,8 +204,8 @@ func (r *StreamRegistry) ProcessEvent(ctx context.Context, events []entity.Event
 	return result
 }
 
-func (r *StreamRegistry) Shutdown() {
-	r.executor.Shutdown()
+func (r *StreamRegistry) Shutdown(ctx context.Context) {
+	r.executor.Shutdown(ctx)
 }
 
 func (r *StreamRegistry) sendRegistryModifiedEvent(ctx context.Context, streamId string) error {
