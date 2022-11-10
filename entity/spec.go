@@ -145,7 +145,7 @@ type Ops struct {
 	//
 	//		"discard" - Discard the event, log it with Warn, and continue processing other events.
 	//
-	//		"dlq"     - Move the event from the source topic to a DLQ topic named "geist.dlq.<streamId>".
+	//		"dlq"     - Move the event from the source topic to a DLQ topic specified in DLQ Config.
 	//
 	//		"fail"    - The stream will be terminated with an error message.
 	//
@@ -209,6 +209,10 @@ type SourceConfig struct {
 	// One reason to have this config availble per stream is to reduce memory allocation when it's not needed.
 	SendToSource *bool
 
+	// DLQ details the options for DLQ handling and is often required if Ops.HandlingOfUnretryableEvents
+	// is set to "dlq". This is dependent on the specification options for each source connector type.
+	DLQ *DLQ `json:"dlq,omitempty"`
+
 	// CustomConfig can be used by custom source/sink plugins for config options not explicitly provided by the Spec struct
 	CustomConfig any `json:"customConfig,omitempty"`
 }
@@ -241,6 +245,22 @@ type Subscription struct {
 type Property struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
+}
+
+type DLQ struct {
+	// Topic specifies which topic to use for DLQ events. If the extractor config does not
+	// allow topic creation, only Topic[].Name is regarded. Otherwise, additional properties
+	// such as NumPartitions and ReplicationFactor will be used as well if the topic is created
+	// (if it doesn't exist already). Since this is regarded as a sink mechanism the same type
+	// is used here as for a standard sink.
+	Topic []SinkTopic `json:"topic,omitempty"`
+
+	// If StreamIDEnrichmentPath is not empty it specifies the JSON path (e.g.
+	// "my.enrichment.streamId") including the JSON field name, which will hold the
+	// value of the injected stream ID for the current stream. That is, before the
+	// event is sent to the DLQ the stream ID is added to a new field created in the
+	// event, if this option is used.
+	StreamIDEnrichmentPath string `json:"streamIDEnrichmentPath,omitempty"`
 }
 
 // Transform spec
