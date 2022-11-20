@@ -310,9 +310,15 @@ type Transform struct {
 	ExtractItemsFromArray []ExtractItemsFromArray `json:"extractItemsFromArray,omitempty"`
 
 	// The Regexp transformation transforms a string into a JSON based on the groupings in
-	// the regular expression.
-	// Minimum one groupings needs to be made.
+	// the regular expression. Minimum one groupings needs to be made.
 	Regexp *Regexp `json:"regexp,omitempty"`
+}
+
+func (t *Transform) Validate() (err error) {
+	if t.Regexp != nil {
+		err = t.Regexp.Validate()
+	}
+	return err
 }
 
 // ExcludeEventsWith specifies if certain events should be skipped directly, without further processing.
@@ -364,31 +370,6 @@ type ArrayItems struct {
 type IdFromItemFields struct {
 	Delimiter string   `json:"delimiter"`
 	Fields    []string `json:"fields"`
-}
-
-type Regexp struct {
-	// The regular expression, in RE2 syntax.
-	Expression string `json:"expression,omitempty"`
-
-	// If used in conjunction with fieldExtraction, this will be the field to apply regexp on.
-	Field string `json:"field,omitempty"`
-
-	// If extracted field should be kept in result or omitted. Default is false.
-	KeepField bool `json:"keepField,omitempty"`
-
-	// Time conversion of date field. Field specified must be extracted before.
-	TimeConversion *TimeConv `json:"timeConversion,omitempty"`
-}
-
-type TimeConv struct {
-	// Field where the data is located and should be converted.
-	Field string `json:"field,omitempty"`
-
-	// Input format of date to be converted. Mandatory.
-	InputFormat string `json:"inputFormat,omitempty"`
-
-	// Output format of date, if omitted, ISO-8601 is used.
-	OutputFormat string `json:"outputFormat,omitempty"`
 }
 
 // The Key string must be on a JSON path syntax according to github.com/tidwall/gjson (see below).
@@ -713,11 +694,10 @@ type ColumnQualifier struct {
 	NameFromId *NameFromId `json:"nameFromId,omitempty"`
 }
 
-// Stream spec JSON schema validation will be handled by NewSpec() using validateRawJson() against geist spec json schema.
-// This func contains more complex validation such as Regexp validation.
+// Stream spec JSON schema validation will be handled by NewSpec() using validateRawJson() against
+// Geist spec json schema. This method enables more complex validation such as Regexp validation.
 func (s *Spec) Validate() error {
-
-	return s.Transform.validate()
+	return s.Transform.Validate()
 }
 
 func (s *Spec) JSON() []byte {

@@ -6,38 +6,63 @@ import (
 	"strings"
 )
 
-// validate is used during spec creation with entity.NewSpec() if Spec.Transform.Regexp
-// is specified in the stream spec.
-func (t *Transform) validate() error {
-	var err error
-	if t.Regexp != nil {
-		if t.Regexp.Expression == "" {
-			return fmt.Errorf("no RegExp is specified")
-		}
+// Regexp specifies an optional transformation type for use in the stream spec.
+// It transforms a string into a JSON based on the groupings in the regular expression.
+// Minimum one grouping needs to be made. The resulting output from the transformation
+// is found with the key "regexppayload".
+// An example use case is when having incoming events on a Kafka topic with certain fields
+// containing plain log text strings, from which certain parts should be extracted into
+// fields for downstream ingestion into the sink on a structured format.
+type Regexp struct {
+	// The regular expression, in RE2 syntax.
+	Expression string `json:"expression,omitempty"`
 
-		_, err = regexp.Compile(t.Regexp.Expression)
-		if err != nil {
-			return fmt.Errorf("error during RegExp compile: %v", err.Error())
-		}
+	// If used in conjunction with fieldExtraction, this will be the field to apply regexp on.
+	Field string `json:"field,omitempty"`
 
-		groups := t.Regexp.CollectGroups(t.Regexp.Expression)
-		if len(groups) < 1 {
-			return fmt.Errorf("no groupings where found in regular expression %s", t.Regexp.Expression)
-		}
+	// If extracted field should be kept in result or omitted. Default is false.
+	KeepField bool `json:"keepField,omitempty"`
 
-		if t.Regexp.TimeConversion != nil {
-			if len(t.Regexp.TimeConversion.Field) < 1 {
-				return fmt.Errorf("regexp.timeConversion.field must be set")
-			}
-			if len(t.Regexp.TimeConversion.InputFormat) < 1 {
-				return fmt.Errorf("regexp.timeConversion.inputFormat must be set")
-			}
-		}
+	// Time conversion of date field. Field specified must be extracted before.
+	TimeConversion *TimeConv `json:"timeConversion,omitempty"`
+}
+
+type TimeConv struct {
+	// Field where the data is located and should be converted.
+	Field string `json:"field,omitempty"`
+
+	// Input format of date to be converted. Mandatory.
+	InputFormat string `json:"inputFormat,omitempty"`
+
+	// Output format of date, if omitted, ISO-8601 is used.
+	OutputFormat string `json:"outputFormat,omitempty"`
+}
+
+// Validate returns nil if the Regexp transform spec is valid, or an error otherwise.
+func (r *Regexp) Validate() (err error) {
+	if r.Expression == "" {
+		return fmt.Errorf("no RegExp is specified")
 	}
 
-	// Further add validations for transform
+	_, err = regexp.Compile(r.Expression)
+	if err != nil {
+		return fmt.Errorf("error during RegExp compile: %v", err.Error())
+	}
 
-	return nil
+	groups := r.CollectGroups(r.Expression)
+	if len(groups) < 1 {
+		return fmt.Errorf("no groupings where found in regular expression %s", r.Expression)
+	}
+
+	if r.TimeConversion != nil {
+		if len(r.TimeConversion.Field) < 1 {
+			return fmt.Errorf("regexp.timeConversion.field must be set")
+		}
+		if len(r.TimeConversion.InputFormat) < 1 {
+			return fmt.Errorf("regexp.timeConversion.inputFormat must be set")
+		}
+	}
+	return err
 }
 
 // TODO: Shorten, but not important now since there is no performance impact.
