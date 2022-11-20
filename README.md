@@ -218,7 +218,7 @@ The ID of the new stream returned from `geist.RegisterStream()` in a successful 
 
 For full spec structure with all optional and additional fields, see [spec.go](entity/spec.go).
 
-The Stream Spec struct (as used internally) is available externally with `entity.Spec` into which a json bytes spec can be unmarshalled if needed, preferably using `entity.NewSpec(specBytes)`, which ensures schema validation and adjusting defaults to proper values.
+During spec registration the JSON spec is converted to an `entity.Spec` struct for internal usage. If needed, this can also be done externally by using `entity.NewSpec(specBytes)`, which ensures schema validation and proper default values.
 
 ### Operational Config
 
