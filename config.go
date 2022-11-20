@@ -46,6 +46,10 @@ type SpecRegistryConfig struct {
 	// StreamSpec specifies the Stream Spec for the internal stream, handling Stream Spec registrations,
 	// if StorageMode is set to "custom".
 	StreamSpec []byte
+
+	// Env specifies which environment string to match against stream specs using the OpsPerEnv
+	// part of the spec. If empty only the common Spec.Ops will be regarded.
+	Env string
 }
 
 // AdminStreamConfig specifies how the internal cross-pod admin event propagation should be set up.
@@ -143,6 +147,7 @@ func preProcessConfig(config *Config) service.Config {
 	c.NotifyChanSize = config.Ops.NotifyChanSize
 	c.Registry.StorageMode = toGeistStorageMode(config.Registry.StorageMode)
 	c.Registry.RegSpec = config.Registry.StreamSpec
+	c.Registry.Env = config.Registry.Env
 	c.Entity.Loaders = config.loaders
 	c.Entity.Extractors = config.extractors
 	c.Engine.Log = config.Ops.Log

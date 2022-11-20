@@ -132,7 +132,7 @@ For a complete working example, see the [Emitter Stream](test/example/emitterstr
 
 ## Enrichment and custom stream logic
 The native transformation entity provides a set of common transformations.
-But to provide complete flexibility, adding capabilities for the Geist user to add custom logic such as enrichment of events, deduplication, complex filtering (if the native transform options are insufficient), etc, a client-managed hook function can be set in `geist.Config` prior to calling `geist.New()`.
+But to provide complete flexibility, adding capabilities for the Geist user to add custom logic such as enrichment of events, deduplication, complex filtering (if the native transform options are insufficient), etc., a client-managed hook function can be set in `geist.Config` prior to calling `geist.New()`.
 
 The function assigned to `geist.Config.Hooks.PreTransformHookFunc` will be called for each event retrieved by the _Extractor_. A pointer to the raw event is provided to the func, which could modify its contents before Geist continues with downstream transformations and Sink processing.
 
@@ -193,9 +193,9 @@ The default native spec is found in [regspec.go](internal/pkg/admin/regspec.go).
 Any cross-pod synchronization, e.g. notification of newly updated stream specs, is done with an internal admin stream. It is managed and customizable in similar fashion as the Reg Spec and found in [adminspec.go](internal/pkg/admin/adminspec.go).
 
 ## Stream Spec Format
-A stream spec has the following main fields/parts (additional fields are described further below):
+A stream spec has the following required main fields/parts (additional fields are described further below):
 
-```
+```json
 {
   "namespace": "<service or feature acting as stream owner>",
   "streamIdSuffix": "<stream subtype>",
@@ -218,7 +218,57 @@ The ID of the new stream returned from `geist.RegisterStream()` in a successful 
 
 For full spec structure with all optional and additional fields, see [spec.go](entity/spec.go).
 
-The Stream Spec struct is exposed as `geist.StreamSpec` into which a json bytes spec can be unmarshalled if needed.
+The Stream Spec struct (as used internally) is available externally with `entity.Spec` into which a json bytes spec can be unmarshalled if needed, preferably using `entity.NewSpec(specBytes)`, which ensures schema validation and adjusting defaults to proper values.
+
+### Operational Config
+
+For a more detailed operational control and tuning of each stream the optional `"ops"` config can be used.
+
+Full default config used, if not specified in the stream spec, is the following:
+
+```json
+{
+  ...
+  "ops": {
+    "streamsPerPod": 1,
+    "microBatch": false,
+    "microBatchSize": 500,
+    "microBatchBytes": 5000000,
+    "microBatchTimeoutMs": 15000,
+    "maxEventProcessingRetries": 5,
+    "maxStreamRetryBackoffIntervalSec": 300,
+    "handlingOfUnretryableEvents": "default",
+    "logEventData": false
+  },
+  ...
+}
+```
+
+See the `Ops` struct in [spec.go](entity/spec.go) for full documentation.
+
+For scenarios where the streams need to be deployed to multiple environments with different surrounding context, an additional environment specific config option is available using the `opsPerEnv` field. With this field, the above Ops config can look different for each named environment.
+
+Say we have two different production environments, `prod-x` and `prod-y`, we can then specify different config per environment using the following format (example):
+
+```json
+{
+  ...
+  "opsPerEnv": {
+    "prod-x": {
+      "streamsPerPod": 8
+    },
+    "prod-y": {
+      "streamsPerPod": 16
+    }
+  },
+  ...
+}
+```
+
+The environment string to match with the one provided in the spec is set in `geist.Config.Registry.Env` when creating Geist with `geist.New(ctx, config)`.
+
+If `opsPerEnv` is provided and a match is found for the deployed environment type, the specified `opsPerEnv` config will be set as the main `"ops"` specification to use in this specific deployment.
+
 
 ### Example spec
 The simple spec below exemplifies an autonomous stream using Kafka as source and BigTable as sink, inserting raw events in a table with a single column named `event`, row-key as `<fooId>#<barType>`, and a TTL of 31 days.
