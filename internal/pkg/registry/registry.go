@@ -19,8 +19,18 @@ import (
 const RawEventField = "rawEvent"
 
 type Config struct {
+
+	// Specifies which mode to use (in-memory, custom, etc)
 	StorageMode admin.RegStorageMode
-	RegSpec     []byte // currently only needed outside during initialization of StreamRegistry
+
+	// RegSpec is only used when StorageMode is set to admin.RegStorageCustom and contains
+	// the spec registration spec to use. It is currently only needed by clients to Registry
+	// during initialization of StreamRegistry.
+	RegSpec []byte
+
+	// Specifies which environment string to match against stream specs using the OpsPerEnv
+	// part of the spec. If empty it is disregarded.
+	Env string
 }
 
 // StreamRegistry implements both the Registry and the Executor interfaces so that it can serve
@@ -61,14 +71,39 @@ func (r *StreamRegistry) SetLoader(loader entity.Loader) {
 //
 
 // The StreamRegistry implementation of Registry.Put() only caches the spec in-memory,
-// since the actual persistence of specs are done with its Stream ETL Executor implementation
+// since the actual persistence of specs are done with its Stream Executor implementation
 // inside ProcessEvent(), which in turn relies on the assigned Loader to store the spec.
 // It is currently only used internally from StreamRegistry's ProcessEvent function as
 // part of Supervisor managed updated of new specs, thus no mutex needed on specs map.
-func (r *StreamRegistry) Put(ctx context.Context, id string, spec igeist.Spec) error {
+func (r *StreamRegistry) Put(ctx context.Context, id string, spec igeist.Spec) (err error) {
+	spec, err = r.adjustOpsConfig(spec)
+	if err != nil {
+		return err
+	}
 	r.specs[id] = spec
 	return nil
 }
+
+// adjustOpsConfig sets the desired ops config based on current environment, if specified.
+func (r *StreamRegistry) adjustOpsConfig(spec igeist.Spec) (igeist.Spec, error) {
+	s := spec.(*entity.Spec)
+	if s.OpsPerEnv == nil || r.config.Env == "" {
+		return spec, nil
+	}
+	ops, ok := s.OpsPerEnv[r.config.Env]
+	if !ok {
+		specEnvs := make([]string, 0, len(s.OpsPerEnv))
+		for k := range s.OpsPerEnv {
+			specEnvs = append(specEnvs, k)
+		}
+		return spec, fmt.Errorf("invalid environment field match in spec %s, Registry env: %s, Spec envs: %v", s.Id(), r.config.Env, specEnvs)
+	}
+	s.Ops = ops
+	s.Ops.EnsureValidDefaults()
+	return s, nil
+}
+
+const notifyCorruptSpec = "Stored spec is corrupt and will be disregarded, err: %s, specData: %s"
 
 func (r *StreamRegistry) Fetch(ctx context.Context) error {
 	var updatedSpecs []*entity.Transformed
@@ -91,11 +126,17 @@ func (r *StreamRegistry) Fetch(ctx context.Context) error {
 		rawData := []byte(specData.Data[RawEventField].(string))
 		spec, err := entity.NewSpec(rawData)
 		if err != nil {
-			r.notifier.Notify(entity.NotifyLevelError, "Stored spec is corrupt and will be disregarded, err: %s, specData: %s", err.Error(), string(rawData))
+			r.notifier.Notify(entity.NotifyLevelError, notifyCorruptSpec, err.Error(), string(rawData))
 			continue
 		}
 
-		r.specs[spec.Id()] = spec
+		s, err := r.adjustOpsConfig(spec)
+		if err != nil {
+			r.notifier.Notify(entity.NotifyLevelError, notifyCorruptSpec, err.Error(), string(rawData))
+			continue
+		}
+
+		r.specs[spec.Id()] = s
 	}
 
 	return nil

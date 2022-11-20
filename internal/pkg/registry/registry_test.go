@@ -71,6 +71,8 @@ func TestStreamRegistryFetch(t *testing.T) {
 	}
 }
 
+const envProd = "prod-xyz"
+
 func TestRunStreamRegistry(t *testing.T) {
 	ctx := context.Background()
 	spec := etltest.SpecSpec()
@@ -86,7 +88,7 @@ func TestRunStreamRegistry(t *testing.T) {
 		Log:        log,
 	}
 	regExecutor := engine.NewExecutor(engineConfig, stream)
-	registry := NewStreamRegistry(Config{}, regExecutor, notifyChan, log)
+	registry := NewStreamRegistry(Config{Env: envProd}, regExecutor, notifyChan, log)
 	assert.NotNil(t, registry)
 
 	var wg sync.WaitGroup
@@ -101,9 +103,62 @@ func TestRunStreamRegistry(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, spec, storedSpec)
 
+	// Test env handling
+	spec, err = entity.NewSpec(specWithOpsPerEnv)
+	assert.NoError(t, err)
+	assert.Equal(t, spec.OpsPerEnv[envProd].StreamsPerPod, 16)
+	assert.Equal(t, spec.Ops.StreamsPerPod, 1)
+
+	err = registry.Put(ctx, spec.Id(), spec)
+	assert.NoError(t, err)
+	storedSpec, err = registry.Get(ctx, spec.Id())
+	assert.NoError(t, err)
+
+	assert.Equal(t, storedSpec.(*entity.Spec).OpsPerEnv[envProd].StreamsPerPod, 16)
+	assert.Equal(t, storedSpec.(*entity.Spec).Ops.StreamsPerPod, 16)
+
 	cancel()
 	wg.Wait()
 }
+
+var (
+	specWithOpsPerEnv = []byte(`
+{
+  "namespace": "geisttest",
+  "streamIdSuffix": "opsperenv",
+  "version": 1,
+  "description": "A spec using different ops per environment",
+  "opsPerEnv": {
+    "dev": {
+      "streamsPerPod": 4
+    },
+    "staging": {
+      "streamsPerPod": 8
+    },
+    "prod-xyz": {
+      "streamsPerPod": 16
+    }
+  },
+  "source": {
+    "type": "geistapi"
+  },
+  "transform": {
+    "extractFields": [
+      {
+        "fields": [
+          {
+            "id": "rawEvent"
+          }
+        ]
+      }
+    ]
+  },
+  "sink": {
+    "type": "void"
+  }
+}
+`)
+)
 
 func handleNotificationEvents(notifyChan entity.NotifyChan) {
 	for event := range notifyChan {

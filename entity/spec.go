@@ -3,9 +3,6 @@ package entity
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
-	"regexp"
-	"strings"
 
 	"github.com/xeipuuv/gojsonschema"
 )
@@ -31,21 +28,27 @@ const (
 // Data processing and ingestion options
 const GeistIngestionTime = "@GeistIngestionTime"
 
-// Spec implements the GEIST ETL Stream Spec interface and specifies how each ETL stream should
+// Spec implements the GEIST Stream Spec interface and specifies how each ETL stream should
 // be executed from Source to Transform to Sink. Specs are registered and updated through
-// an ETL stream of its own, as specified by the built-in SpecRegistrationSpec.
-// The Namespace + StreamIdSuffix combination must be unique (forming a GEIST ETL Stream ID).
+// a stream of its own, as specified by the configurable SpecRegistrationSpec.
+// The Namespace + StreamIdSuffix combination must be unique (forming a GEIST Stream ID).
 // To succeed with an upgrade of an existing spec the version number needs to be incremented.
 type Spec struct {
-	Namespace      string    `json:"namespace"`
-	StreamIdSuffix string    `json:"streamIdSuffix"`
-	Description    string    `json:"description"`
-	Version        int       `json:"version"`
-	Disabled       bool      `json:"disabled"`
-	Ops            Ops       `json:"ops"`
-	Source         Source    `json:"source"`
-	Transform      Transform `json:"transform"`
-	Sink           Sink      `json:"sink"`
+	// Main metadata (required)
+	Namespace      string `json:"namespace"`
+	StreamIdSuffix string `json:"streamIdSuffix"`
+	Description    string `json:"description"`
+	Version        int    `json:"version"`
+
+	// Operational config (optional)
+	Disabled  bool           `json:"disabled"`
+	Ops       Ops            `json:"ops"`
+	OpsPerEnv map[string]Ops `json:"opsPerEnv,omitempty"`
+
+	// Stream entity config (required)
+	Source    Source    `json:"source"`
+	Transform Transform `json:"transform"`
+	Sink      Sink      `json:"sink"`
 }
 
 // NewSpec creates a new Spec from JSON and validates both against JSON schema and the transformation
@@ -60,9 +63,9 @@ func NewSpec(specData []byte) (*Spec, error) {
 		return nil, err
 	}
 
-	spec.SetRequiredDefaults()
 	err := json.Unmarshal(specData, &spec)
 	if err == nil {
+		spec.EnsureValidDefaults()
 		err = spec.Validate()
 	}
 	return &spec, err
@@ -70,7 +73,7 @@ func NewSpec(specData []byte) (*Spec, error) {
 
 func NewEmptySpec() *Spec {
 	var spec Spec
-	spec.SetRequiredDefaults()
+	spec.EnsureValidDefaults()
 	return &spec
 }
 
@@ -82,14 +85,12 @@ func (s *Spec) IsDisabled() bool {
 	return s.Disabled
 }
 
-func (s *Spec) SetRequiredDefaults() {
-	s.Ops.StreamsPerPod = DefaultStreamsPerPod
-	s.Ops.MicroBatchSize = DefaultMicroBatchSize
-	s.Ops.MicroBatchBytes = DefaultMicroBatchBytes
-	s.Ops.MicroBatchTimoutMs = DefaultMicroBatchTimeoutMs
-	s.Ops.MaxEventProcessingRetries = DefaultMaxEventProcessingRetries
-	s.Ops.MaxStreamRetryBackoffIntervalSec = DefaultMaxStreamRetryBackoffIntervalSec
-	s.Ops.HandlingOfUnretryableEvents = HoueDefault
+func (s *Spec) EnsureValidDefaults() {
+	s.Ops.EnsureValidDefaults()
+	for env, ops := range s.OpsPerEnv {
+		ops.EnsureValidDefaults()
+		s.OpsPerEnv[env] = ops
+	}
 }
 
 type Ops struct {
@@ -112,17 +113,17 @@ type Ops struct {
 
 	// MicroBatchSize is the maximum number of events that should be included in the batch.
 	// If omitted it is set to DefaultMicroBatchSize
-	MicroBatchSize int `json:"microBatchSize"`
+	MicroBatchSize int `json:"microBatchSize,omitempty"`
 
 	// MicroBatchSize specifies the threshold that when reached closes the batch regardless of number of events in
 	// the batch, and forwards it downstream. The final size of the batch will be this threshold + size of next event.
 	// If omitted it is set to DefaultMicroBatchSizeBytes
-	MicroBatchBytes int `json:"microBatchBytes"`
+	MicroBatchBytes int `json:"microBatchBytes,omitempty"`
 
 	// MicroBatchTimeout is the maximum time to wait for the batch to fill up if the max size has not been reached.
 	// If the sink is set to Kafka, this value will override the pollTimeout value.
 	// If omitted it is set to DefaultMicroBatchTimeoutMs
-	MicroBatchTimoutMs int `json:"microBatchTimeoutMs"`
+	MicroBatchTimeoutMs int `json:"microBatchTimeoutMs,omitempty"`
 
 	// MaxEventProcessingRetries specifies how many times an extracted event from the source should be processed
 	// again (transform/load), if deemed retryable, before the Executor restarts the stream on a longer back-off
@@ -132,7 +133,7 @@ type Ops struct {
 
 	// MaxStreamRetryBackoffInterval specifies the max time between stream restarts after exponential backoff
 	// retries of retryable event processing failures.
-	// If omitted it is set to DefaultMaxStreamRetryBackoffInterval
+	// If omitted or zero it is set to DefaultMaxStreamRetryBackoffInterval
 	MaxStreamRetryBackoffIntervalSec int `json:"maxStreamRetryBackoffIntervalSec"`
 
 	// HandlingOfUnretryableEvents specifies what to do with events that can't be properly transformed or loaded
@@ -149,14 +150,40 @@ type Ops struct {
 	//
 	//		"fail"    - The stream will be terminated with an error message.
 	//
-	// Note that all sink types might not support all available options. See documentation for each sink type for details.
+	// Note that all source types might not support all available options. See documentation for each source type for details.
 	//
-	HandlingOfUnretryableEvents string `json:"handlingOfUnretryableEvents"`
+	HandlingOfUnretryableEvents string `json:"handlingOfUnretryableEvents,omitempty"`
 
 	// LogEventData is useful for enabling granular event level debugging dynamically for specific streams
 	// without having to redeploy GEIST. To troubleshoot a specific stream a new version of the stream spec
-	// can be uploaded at run-time (e.g. with LSD) with this field set to true.
+	// can be uploaded at run-time with this field set to true.
 	LogEventData bool `json:"logEventData"`
+}
+
+func (o *Ops) EnsureValidDefaults() {
+	if o.StreamsPerPod <= 0 {
+		o.StreamsPerPod = DefaultStreamsPerPod
+	}
+	if o.MicroBatch {
+		if o.MicroBatchSize <= 0 {
+			o.MicroBatchSize = DefaultMicroBatchSize
+		}
+		if o.MicroBatchBytes <= 0 {
+			o.MicroBatchBytes = DefaultMicroBatchBytes
+		}
+		if o.MicroBatchTimeoutMs <= 0 {
+			o.MicroBatchTimeoutMs = DefaultMicroBatchTimeoutMs
+		}
+	}
+	if o.MaxEventProcessingRetries <= 0 {
+		o.MaxEventProcessingRetries = DefaultMaxEventProcessingRetries
+	}
+	if o.MaxStreamRetryBackoffIntervalSec <= 0 {
+		o.MaxStreamRetryBackoffIntervalSec = DefaultMaxStreamRetryBackoffIntervalSec
+	}
+	if o.HandlingOfUnretryableEvents == "" {
+		o.HandlingOfUnretryableEvents = HoueDefault
+	}
 }
 
 // Source spec
@@ -270,8 +297,9 @@ type Transform struct {
 	// TODO: Change this name to type? or just id?
 	ImplId EntityType `json:"implId,omitempty"`
 
-	// ExcludeEventsWith will be checked first to exclude events, matching conditions, from all other transformations.
-	// If multiple filter objects are provided they are handled as OR type of filters.
+	// ExcludeEventsWith will be checked first to exclude events, matching conditions,
+	// from all other transformations. If multiple filter objects are provided they are
+	// handled as OR type of filters.
 	ExcludeEventsWith []ExcludeEventsWith `json:"excludeEventsWith,omitempty"`
 
 	// The ExtractFields transformation type picks out fields from the input event JSON.
@@ -282,9 +310,15 @@ type Transform struct {
 	ExtractItemsFromArray []ExtractItemsFromArray `json:"extractItemsFromArray,omitempty"`
 
 	// The Regexp transformation transforms a string into a JSON based on the groupings in
-	// the regular expression.
-	// Minimum one groupings needs to be made.
+	// the regular expression. Minimum one groupings needs to be made.
 	Regexp *Regexp `json:"regexp,omitempty"`
+}
+
+func (t *Transform) Validate() (err error) {
+	if t.Regexp != nil {
+		err = t.Regexp.Validate()
+	}
+	return err
 }
 
 // ExcludeEventsWith specifies if certain events should be skipped directly, without further processing.
@@ -336,87 +370,6 @@ type ArrayItems struct {
 type IdFromItemFields struct {
 	Delimiter string   `json:"delimiter"`
 	Fields    []string `json:"fields"`
-}
-
-func (t *Transform) validate() error {
-	var err error
-	if t.Regexp != nil {
-		if t.Regexp.Expression == "" {
-			return fmt.Errorf("no RegExp is specified")
-		}
-
-		_, err = regexp.Compile(t.Regexp.Expression)
-		if err != nil {
-			return fmt.Errorf("error during RegExp compile: %v", err.Error())
-		}
-
-		groups := t.Regexp.CollectGroups(t.Regexp.Expression)
-		if len(groups) < 1 {
-			return fmt.Errorf("no groupings where found in regular expression %s", t.Regexp.Expression)
-		}
-
-		if t.Regexp.TimeConversion != nil {
-			if len(t.Regexp.TimeConversion.Field) < 1 {
-				return fmt.Errorf("regexp.timeConversion.field must be set")
-			}
-			if len(t.Regexp.TimeConversion.InputFormat) < 1 {
-				return fmt.Errorf("regexp.timeConversion.inputFormat must be set")
-			}
-		}
-	}
-
-	// Further add validations for transform
-
-	return nil
-}
-
-type Regexp struct {
-	// The regular expression, in RE2 syntax.
-	Expression string `json:"expression,omitempty"`
-
-	// If used in conjunction with fieldExtraction, this will be the field to apply regexp on.
-	Field string `json:"field,omitempty"`
-
-	// If extracted field should be kept in result or omitted. Default is false.
-	KeepField bool `json:"keepField,omitempty"`
-
-	// Time conversion of date field. Field specified must be extracted before.
-	TimeConversion *TimeConv `json:"timeConversion,omitempty"`
-}
-
-// TODO: Shorten, but not important now since its no performance impact.
-func (r *Regexp) CollectGroups(exp string) []string {
-
-	var (
-		str    string
-		groups []string
-	)
-
-	for i := 0; i < len(exp); i++ {
-		if strings.EqualFold(string(exp[i]), "<") {
-			for i = i + 1; ; i++ {
-				if strings.EqualFold(string(exp[i]), ">") {
-					break
-				}
-				str += string(exp[i])
-			}
-			groups = append(groups, str)
-			str = ""
-		}
-	}
-
-	return groups
-}
-
-type TimeConv struct {
-	// Field where the data is located and should be converted.
-	Field string `json:"field,omitempty"`
-
-	// Input format of date to be converted. Mandatory.
-	InputFormat string `json:"inputFormat,omitempty"`
-
-	// Output format of date, if omitted, ISO-8601 is used.
-	OutputFormat string `json:"outputFormat,omitempty"`
 }
 
 // The Key string must be on a JSON path syntax according to github.com/tidwall/gjson (see below).
@@ -741,11 +694,10 @@ type ColumnQualifier struct {
 	NameFromId *NameFromId `json:"nameFromId,omitempty"`
 }
 
-// Stream spec JSON schema validation will be handled by NewSpec() using validateRawJson() against geist spec json schema.
-// This func contains more complex validation such as Regexp validation.
+// Stream spec JSON schema validation will be handled by NewSpec() using validateRawJson() against
+// Geist spec json schema. This method enables more complex validation such as Regexp validation.
 func (s *Spec) Validate() error {
-
-	return s.Transform.validate()
+	return s.Transform.Validate()
 }
 
 func (s *Spec) JSON() []byte {
@@ -774,115 +726,133 @@ func validateRawJson(specData []byte) error {
 // Initial stream spec schema with only the most important checks. Will be more detailed later.
 var specSchema = []byte(`
 {
-   "$schema": "http://json-schema.org/draft-07/schema",
-   "type": "object",
-   "required": [
-      "namespace",
-      "streamIdSuffix",
-      "version",
-      "description",
-      "source",
-      "transform",
-      "sink"
-   ],
-   "properties": {
-      "namespace": {
-         "type": "string",
-         "minLength": 1
-      },
-      "streamIdSuffix": {
-         "type": "string",
-         "minLength": 1
-      },
-      "version": {
-         "type": "integer"
-      },
-      "description": {
-         "type": "string",
-         "minLength": 1
-      },
-      "disabled": {
-         "type": "boolean"
-      },
-      "ops": {
-         "type": "object",
-         "properties": {
-            "streamsPerPod": {
-               "type": "integer"
-            },
-            "microBatch": {
-               "type": "boolean"
-            },
-            "microBatchSize": {
-               "type": "integer"
-            },
-            "microBatchBytes": {
-               "type": "integer"
-            },
-            "microBatchTimeoutMs": {
-               "type": "integer"
-            },
-            "maxEventProcessingRetries": {
-               "type": "integer"
-            },
-            "maxStreamRetryBackoffIntervalSec": {
-               "type": "integer"
-            },
-            "handlingOfUnretryableEvents": {
-               "type": "string",
-               "enum": [
-                  "default",
-                  "discard",
-                  "dlq",
-                  "fail"
-               ]
-            },
-            "logEventData": {
-               "type": "boolean"
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "type": "object",
+  "required": [
+    "namespace",
+    "streamIdSuffix",
+    "version",
+    "description",
+    "source",
+    "transform",
+    "sink"
+  ],
+  "properties": {
+    "namespace": {
+      "type": "string",
+      "minLength": 1
+    },
+    "streamIdSuffix": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "integer"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "disabled": {
+      "type": "boolean"
+    },
+    "ops": {
+      "$ref": "#/$defs/ops"
+    },
+    "opsPerEnv": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ops"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "config": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "enum": [
+                "native",
+                "confluent"
+              ]
             }
-         },
-         "additionalProperties": false
-      },
-      "source": {
-         "type": "object",
-         "required": [
-            "type"
-         ],
-         "properties": {
-            "type": {
-               "type": "string",
-               "minLength": 1
-            },
-            "config": {
-               "type": "object",
-               "properties": {
-                  "provider": {
-                     "type": "string",
-                     "enum": [
-                        "native",
-                        "confluent"
-                     ]
-                  }
-               }
-            }
-         }
-      },
-      "transform": {
-         "type": "object"
-      },
-      "sink": {
-         "type": "object",
-         "required": [
-            "type"
-         ],
-         "properties": {
-            "type": {
-               "type": "string",
-               "minLength": 1
-            }
-         }
+          }
+        }
       }
-   },
-   "additionalProperties": false
+    },
+    "transform": {
+      "type": "object"
+    },
+    "sink": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "ops": {
+      "type": "object",
+      "properties": {
+        "streamsPerPod": {
+          "type": "integer"
+        },
+        "microBatch": {
+          "type": "boolean"
+        },
+        "microBatchSize": {
+          "type": "integer"
+        },
+        "microBatchBytes": {
+          "type": "integer"
+        },
+        "microBatchTimeoutMs": {
+          "type": "integer"
+        },
+        "maxEventProcessingRetries": {
+          "type": "integer"
+        },
+        "maxStreamRetryBackoffIntervalSec": {
+          "type": "integer"
+        },
+        "handlingOfUnretryableEvents": {
+          "type": "string",
+          "enum": [
+            "default",
+            "discard",
+            "dlq",
+            "fail"
+          ]
+        },
+        "logEventData": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
 }
 `)

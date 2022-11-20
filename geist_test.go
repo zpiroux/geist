@@ -54,6 +54,11 @@ var testSpec2 = []byte(`
    "streamIdSuffix": "test2",
    "description": "Simple test spec",
    "version": 1,
+   "opsPerEnv": {
+      "prod": {
+         "streamsPerPod": 3
+      }
+   },
    "source": {
       "type": "geistapi"
    },
@@ -92,6 +97,7 @@ func TestGeist(t *testing.T) {
 	// Create Geist
 	cfg := NewConfig()
 	cfg.Ops.Log = false
+	cfg.Registry.Env = "prod"
 	geist, err := New(ctx, cfg)
 	assert.NoError(t, err)
 
@@ -116,7 +122,7 @@ func TestGeist(t *testing.T) {
 	wgGeist.Wait()
 	close(notifyChan)
 	wgNotifyHandler.Wait()
-	assert.Equal(t, 20, nbNotificationEvents)
+	assert.Equal(t, 26, nbNotificationEvents)
 }
 
 func handleNotificationEvents(ch entity.NotifyChan, wg *sync.WaitGroup, nbEvents *int) {
@@ -185,7 +191,15 @@ func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing
 	assert.NoError(t, err)
 	spec, err := entity.NewSpec(testSpec1)
 	assert.NoError(t, err)
+	assert.Equal(t, spec.Ops.StreamsPerPod, 1) // validate proper default value
 	assert.Equal(t, string(spec.JSON()), string(specBytesOut))
+
+	// Validate env-specific stream config handling
+	specBytesOut, err = geist.GetStreamSpec(TestSpec2)
+	assert.NoError(t, err)
+	spec, err = entity.NewSpec(specBytesOut)
+	assert.NoError(t, err, string(specBytesOut))
+	assert.Equal(t, 3, spec.Ops.StreamsPerPod, string(specBytesOut))
 
 	// Validate exposed stream spec
 	var xspec entity.Spec
