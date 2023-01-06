@@ -432,8 +432,9 @@ Although Geist has been run in production with heavy load, no data-loss, and zer
 
 The following types of streams have been run extensively and concurrently with high throughput:
 
-* Kafka (Confluent) → BigTable
-* Kafka (Confluent) → BigQuery
+* Kafka → BigTable
+* Kafka → BigQuery
+* Kafka → Various custom-built connectors
 
 Additionally, Pubsub as source and Firestore as sink have been used extensively but with limited traffic.
 
