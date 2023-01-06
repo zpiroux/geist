@@ -282,6 +282,9 @@ type DLQ struct {
 	// is used here as for a standard sink.
 	Topic []SinkTopic `json:"topic,omitempty"`
 
+	// Generic config map for DLQ producers
+	ProducerConfig map[string]any `json:"producerConfig,omitempty"`
+
 	// If StreamIDEnrichmentPath is not empty it specifies the JSON path (e.g.
 	// "my.enrichment.streamId") including the JSON field name, which will hold the
 	// value of the injected stream ID for the current stream. That is, before the
