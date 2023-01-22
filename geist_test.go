@@ -194,6 +194,10 @@ func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing
 	assert.Equal(t, spec.Ops.StreamsPerPod, 1) // validate proper default value
 	assert.Equal(t, string(spec.JSON()), string(specBytesOut))
 
+	specBytesOut, err = geist.GetStreamSpec(ctx, "unknown-spec-id")
+	assert.EqualError(t, err, "spec not found")
+	assert.Nil(t, specBytesOut)
+
 	// Validate env-specific stream config handling
 	specBytesOut, err = geist.GetStreamSpec(ctx, TestSpec2)
 	assert.NoError(t, err)
