@@ -187,7 +187,7 @@ func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing
 	assert.Equal(t, 2, len(specs))
 	assertEqualMetrics(t, expectedMetrics, geist.Metrics())
 
-	specBytesOut, err := geist.GetStreamSpec(TestSpec1)
+	specBytesOut, err := geist.GetStreamSpec(ctx, TestSpec1)
 	assert.NoError(t, err)
 	spec, err := entity.NewSpec(testSpec1)
 	assert.NoError(t, err)
@@ -195,7 +195,7 @@ func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing
 	assert.Equal(t, string(spec.JSON()), string(specBytesOut))
 
 	// Validate env-specific stream config handling
-	specBytesOut, err = geist.GetStreamSpec(TestSpec2)
+	specBytesOut, err = geist.GetStreamSpec(ctx, TestSpec2)
 	assert.NoError(t, err)
 	spec, err = entity.NewSpec(specBytesOut)
 	assert.NoError(t, err, string(specBytesOut))
