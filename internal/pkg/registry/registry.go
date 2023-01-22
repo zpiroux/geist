@@ -143,7 +143,10 @@ func (r *StreamRegistry) Fetch(ctx context.Context) error {
 }
 
 func (r *StreamRegistry) Get(ctx context.Context, id string) (igeist.Spec, error) {
-	return r.specs[id], nil
+	if spec, ok := r.specs[id]; ok {
+		return spec, nil
+	}
+	return nil, fmt.Errorf("spec not found")
 }
 
 func (r *StreamRegistry) GetAll(ctx context.Context) (map[string]igeist.Spec, error) {

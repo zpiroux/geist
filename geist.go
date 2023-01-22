@@ -145,10 +145,10 @@ func (g *Geist) Publish(ctx context.Context, streamId string, event []byte) (id 
 }
 
 // GetStreamSpec returns the full stream spec for a specific stream ID
-func (g *Geist) GetStreamSpec(streamId string) (specData []byte, err error) {
-	stream, err := g.service.Stream(streamId)
+func (g *Geist) GetStreamSpec(ctx context.Context, streamId string) (specData []byte, err error) {
+	spec, err := g.service.Registry().Get(ctx, streamId)
 	if err == nil {
-		specData = stream.Spec().JSON()
+		specData = spec.JSON()
 	}
 	return
 }
