@@ -179,7 +179,7 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 	defer e.processEventExit(time.Now().UnixMicro())
 
 	if e.shutdownInProgress {
-		e.notifier.Notify(entity.NotifyLevelWarn, "Rejecting event processing due to shutdown in progress, rejected events: %v", events)
+		e.notifier.Notify(entity.NotifyLevelWarn, "ProcessEvent called while shutdown in progress, rejecting event processing in this stream instance")
 		result.Error = nil
 		result.Status = entity.ExecutorStatusShutdown
 		return result
@@ -291,7 +291,7 @@ func (e *Executor) loadToSink(ctx context.Context, transformed []*entity.Transfo
 	}
 
 	if result.Error != nil && result.Retryable {
-		e.notifier.Notify(entity.NotifyLevelError, "Giving up retrying load to sink for spec ID %s, after %d attempts, transformed event(s): %+v", e.StreamId(), loadAttempts, transformed)
+		e.notifier.Notify(entity.NotifyLevelError, "Giving up retrying load to sink for spec ID %s, after %d attempts", e.StreamId(), loadAttempts)
 		result.Status = entity.ExecutorStatusRetriesExhausted
 		// From here, it's up to each extractor to handle DLQ logic
 	}
