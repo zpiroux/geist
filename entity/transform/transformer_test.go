@@ -322,8 +322,8 @@ func TestTransformerExtractFields(t *testing.T) {
 	importantStuff, ok := transformed.Data["myImportantField"]
 	assert.True(t, ok)
 	assert.Equal(t, "", importantStuff)
-	fmt.Printf("transformed: %v\n", transformed)
-	fmt.Printf("importantStuff: %v\n", importantStuff)
+	tPrintf("transformed: %v\n", transformed)
+	tPrintf("importantStuff: %v\n", importantStuff)
 }
 
 func TestJsonBlobExtract(t *testing.T) {

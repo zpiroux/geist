@@ -12,6 +12,7 @@ const (
 	EntityVoid     EntityType = "void"
 	EntityAdmin    EntityType = "admin"
 	EntityGeistApi EntityType = "geistapi"
+	EntityEventSim EntityType = "eventsim"
 )
 
 var ReservedEntityNames = map[string]bool{
@@ -19,6 +20,7 @@ var ReservedEntityNames = map[string]bool{
 	string(EntityVoid):     true,
 	string(EntityAdmin):    true,
 	string(EntityGeistApi): true,
+	string(EntityEventSim): true,
 }
 
 // Config is the Entity Config to use with Entity factories
