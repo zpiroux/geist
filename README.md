@@ -117,7 +117,7 @@ g, err := geist.New(ctx, geistConfig)
 ```
 The service using Geist could in this way also register its own custom connectors, provided they adhere to the connector interfaces, etc.
 
-For a complete working example, see the [Emitter Stream](test/example/emitterstream/main.go).
+For a complete working example of providing a custom connector, see the [Emitter Stream](test/example/emitterstream/main.go).
 
 ### Validated source connectors
 * [Kafka (vanilla and Confluent)](https://github.com/zpiroux/geist-connector-kafka)
@@ -195,7 +195,7 @@ Any cross-pod synchronization, e.g. notification of newly updated stream specs, 
 ## Stream Spec Format
 A stream spec has the following required main fields/parts (additional fields are described further below):
 
-```json
+```
 {
   "namespace": "<service or feature acting as stream owner>",
   "streamIdSuffix": "<stream subtype>",
@@ -227,8 +227,6 @@ For a more detailed operational control and tuning of each stream the optional `
 Full default config used, if not specified in the stream spec, is the following:
 
 ```json
-{
-  ...
   "ops": {
     "streamsPerPod": 1,
     "microBatch": false,
@@ -239,9 +237,7 @@ Full default config used, if not specified in the stream spec, is the following:
     "maxStreamRetryBackoffIntervalSec": 300,
     "handlingOfUnretryableEvents": "default",
     "logEventData": false
-  },
-  ...
-}
+  }
 ```
 
 See the `Ops` struct in [spec.go](entity/spec.go) for full documentation.
@@ -251,8 +247,6 @@ For scenarios where the streams need to be deployed to multiple environments wit
 Say we have two different production environments, `prod-x` and `prod-y`, we can then specify different config per environment using the following format (example):
 
 ```json
-{
-  ...
   "opsPerEnv": {
     "prod-x": {
       "streamsPerPod": 8
@@ -260,9 +254,7 @@ Say we have two different production environments, `prod-x` and `prod-y`, we can
     "prod-y": {
       "streamsPerPod": 16
     }
-  },
-  ...
-}
+  }
 ```
 
 The environment string to match with the one provided in the spec is set in `geist.Config.Registry.Env` when creating Geist with `geist.New(ctx, config)`.
@@ -370,10 +362,10 @@ The following data can be retrieved:
 * The full list of specs for all registered streams.
 * The full list of stream IDs together with status on enabled/disabled.
 * The spec for a single stream from a stream ID.
-* All the events stored in a stream. Note that this is only meant for small datasets (supported by Firestore and BigTable connectors).
-* Single event key-value lookup, retrieving the event stored in the sink with a given key/ID, provided it was stored in key/value mode (supported by Firestore and BigTable connectors).
 
-Although functional, data retrieval is currently only used internally and not yet exposed by a Geist wrapper function.
+The following event retrieval options are not yet exposed by a Geist API wrapper function, but used internally to enable spec persistence with arbitrary sink types.
+* All the events stored in a stream. Note that this is only meant for small datasets (example support: Firestore and BigTable connectors).
+* Single event key-value lookup, retrieving the event stored in the sink with a given key/ID, provided it was stored in key/value mode (example support: Firestore and BigTable connectors).
 
 ## Performance Characteristics and Tuning
 Geist has several stream config parameters exposed via the Stream Spec, to enable high-performance operation and stream throughput.
@@ -426,6 +418,94 @@ type Metrics struct {
 }
 ```
 
+## Event Simulation
+For various test purposes the native source type `"eventsim"` can be used as source in a stream spec. Using this as source in a deployed stream will continuously send generated events to the sink, with an event schema and randomization as specified in the stream spec.
+
+For full config and spec field documentation, see [eventsim.go](internal/pkg/entity/eventsim/eventsim.go).
+
+For a stream spec example with most options included, see [eventsim_test.go](internal/pkg/entity/eventsim/eventsim_test.go).
+
+The following small example spec creates a stream which continuously (every 3 seconds) sends a variably sized microbatch of berry picking events to the sink. If the sink was a database a visualized timeseries event count would have the form of a sine wave.
+
+Stream spec (only showing the source section):
+
+```json
+{
+    "...": "",
+    "source": {
+        "type": "eventsim",
+        "config": {
+            "customConfig": {
+                "simResolutionMilliseconds": 3000,
+                "eventGeneration": {
+                    "type": "sinusoid",
+                    "minCount": 1,
+                    "maxCount": 50,
+                    "periodSeconds": 86400,
+                    "peakTime": "2023-03-25T11:00:00Z"
+                },
+                "eventSpec": {
+                    "fields": [
+                        {
+                            "field": "eventId",
+                            "randomizedValue": {
+                                "type": "uuid"
+                            }
+                        },
+                        {
+                            "field": "dateReported",
+                            "randomizedValue": {
+                                "type": "isoTimestampMilliseconds",
+                                "jitterMicroseconds": 6000000
+                            }
+                        },
+                        {
+                            "field": "berriesPicked.type",
+                            "predefinedValues": [
+                                {
+                                    "value": "blueberry",
+                                    "frequencyFactor": 60
+                                },
+                                {
+                                    "value": "blackberry",
+                                    "frequencyFactor": 30
+                                },
+                                {
+                                    "value": "cloudberry",
+                                    "frequencyFactor": 10
+                                }
+                            ]
+                        },
+                        {
+                            "field": "berriesPicked.amount",
+                            "randomizedValue": {
+                                "type": "int",
+                                "min": 0,
+                                "max": 75
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "transform": {},
+    "sink": {}
+}
+```
+
+
+Example of generated event:
+```json
+{
+    "eventId": "2446c459-0867-4312-9b0e-5b645728b9de",
+    "dateReported": "2023-04-12T21:33:44.707Z",
+    "berriesPicked": {
+        "type": "cloudberry",
+        "amount": 36
+    }
+}
+``` 
 
 ## Limitations and improvement areas
 Although Geist has been run in production with heavy load, no data-loss, and zero downtime for ~two years, it makes no guarantees that all combinations of stream spec options will work fully in all cases.
@@ -434,7 +514,7 @@ The following types of streams have been run extensively and concurrently with h
 
 * Kafka → BigTable
 * Kafka → BigQuery
-* Kafka → Various custom-built connectors
+* Kafka → Various custom-built connectors for products both in GCP and AWS.
 
 Additionally, Pubsub as source and Firestore as sink have been used extensively but with limited traffic.
 
