@@ -25,7 +25,7 @@ func TestSimpleUsage(t *testing.T) {
 		retryable bool
 	)
 	ctx := context.Background()
-	eventSim := newEventSimForTesting(t, allOptionsEventSimStreamSpec)
+	eventSim := newEventSimForTesting(t, allOptionsEventSimStreamSpec, nil)
 	eventSim.StreamExtract(
 		ctx,
 		reportEvent,
@@ -115,7 +115,11 @@ type ValueLength struct {
 }
 
 func runEventGenTests(t *testing.T) {
-	eventSim := newEventSimForTesting(t, eventSimSpecForGenValidation)
+	customCharsets := map[string][]rune{
+		"myNumberCharset":  []rune("0123456789"),
+		"someOtherCharset": []rune(")(/#&¤=<!"),
+	}
+	eventSim := newEventSimForTesting(t, eventSimSpecForGenValidation, customCharsets)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			testPredefValues(t, tc, eventSim)
@@ -190,10 +194,9 @@ func lenSpecial(value any) int {
 	return 0
 }
 
-func newEventSimForTesting(t *testing.T, specBytes []byte) *eventSim {
+func newEventSimForTesting(t *testing.T, specBytes []byte, customCharsets map[string][]rune) *eventSim {
 	spec, err := entity.NewSpec(specBytes)
 	require.NoError(t, err)
-	customCharsets := map[string][]rune{"myNumberCharset": []rune("0123456789")}
 	eventSim, err := newEventSim(entity.Config{Spec: spec, ID: "someInstanceID", Log: true}, customCharsets)
 	require.NoError(t, err)
 	return eventSim
