@@ -32,8 +32,8 @@ const (
 
 var DefaultCharset = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
 
-// SincSpec specifies the schema of the sink part of the stream spec
-type SinkSpec struct {
+// SourceSpec specifies the schema of the source part of the stream spec
+type SourceSpec struct {
 	// The trigger interval for each event generation execution. If set to 0 or omitted
 	// in the spec, it will be set to DefaultSimResolutionMilliseconds.
 	SimResolutionMilliseconds int `json:"simResolutionMilliseconds"`
@@ -47,14 +47,14 @@ type SinkSpec struct {
 //
 // "Type" can be one of the following:
 //
-//		"random"   --> random value between "MinCount" and "MaxCount"
-//		"sinosoid" --> the number of events generated over time has a sine wave form with
-//		               period specified in "PeriodSeconds", peak-to-peak amplitude in
-//		               "MaxCount" - "MinCount", and the timestamp for a peak time in "PeakTime"
-//		               (required layout: TimestampLayoutIsoSeconds). To achieve a less perfect
-//	                wave, use the Jitter option with a specified randomized timestamp field.
-//		""         --> If empty string (or json field omitted) a single event will be
-//		               generated for each sim resolution trigger.
+//	"random"   --> random value between "MinCount" and "MaxCount"
+//	"sinosoid" --> the number of events generated over time has a sine wave form with
+//	               period specified in "PeriodSeconds", peak-to-peak amplitude in
+//	               "MaxCount" - "MinCount", and the timestamp for a peak time in "PeakTime"
+//	               (required layout: TimestampLayoutIsoSeconds). To achieve a less perfect
+//	               wave, use the Jitter option with a specified randomized timestamp field.
+//	""         --> If empty string (or json field omitted) a single event will be
+//	               generated for each sim resolution trigger.
 type EventGeneration struct {
 	Type          string `json:"type"`
 	MinCount      int    `json:"minCount"`
@@ -152,7 +152,7 @@ func (ef *ExtractorFactory) Close(ctx context.Context) error {
 // eventSim is the source extractor type executing the event sim logic
 type eventSim struct {
 	config          entity.Config
-	sinkSpec        SinkSpec
+	sourceSpec      SourceSpec
 	notifier        *notify.Notifier
 	charsets        map[string][]rune
 	frequencyRanges map[string][]FieldFrequencyRange
@@ -166,39 +166,35 @@ func newEventSim(c entity.Config, charsets map[string][]rune) (*eventSim, error)
 	}
 
 	notifier := notify.New(c.NotifyChan, log, 2, "eventsim", c.ID, c.Spec.Id())
-	sinkSpec, err := newSinkSpec(c.Spec)
+	sourceSpec, err := newSourceSpec(c.Spec)
 	if err != nil {
 		return nil, err
 	}
 
 	eventSim := &eventSim{
-		config:   c,
-		sinkSpec: *sinkSpec,
-		notifier: notifier,
-		charsets: charsets,
+		config:     c,
+		sourceSpec: *sourceSpec,
+		notifier:   notifier,
+		charsets:   charsets,
 	}
 	err = eventSim.prepareSimData()
 	return eventSim, err
 }
 
-func newSinkSpec(spec *entity.Spec) (*SinkSpec, error) {
-	var ss SinkSpec
+func newSourceSpec(spec *entity.Spec) (*SourceSpec, error) {
+	var ss SourceSpec
 	if spec == nil {
 		return nil, errors.New("the provided stream spec must not be nil")
 	}
 
-	if spec.Sink.Config == nil {
-		return nil, errors.New("invalid stream spec, the 'sink.config' object was not present")
-	}
-
 	customConfig, ok := spec.Source.Config.CustomConfig.(map[string]any)
 	if !ok {
-		return nil, errors.New("invalid stream spec, the 'sink.config.customConfig' object was not present")
+		return nil, errors.New("invalid stream spec, the 'source.config.customConfig' object was not present")
 	}
 
 	b, err := json.Marshal(customConfig)
 	if err != nil {
-		return nil, fmt.Errorf("invalid sink spec provided: %v", customConfig)
+		return nil, fmt.Errorf("invalid source spec provided: %v", customConfig)
 	}
 
 	if err = json.Unmarshal(b, &ss); err != nil {
@@ -212,7 +208,7 @@ func newSinkSpec(spec *entity.Spec) (*SinkSpec, error) {
 	return &ss, validateSpecFields(ss)
 }
 
-func validateSpecFields(ss SinkSpec) error {
+func validateSpecFields(ss SourceSpec) error {
 	if ss.EventGeneration.Type == EventGenTypeRandom || ss.EventGeneration.Type == EventGenTypeSinusoid {
 		if ss.EventGeneration.MinCount < 0 || ss.EventGeneration.MaxCount < 0 {
 			return errors.New("minCount and maxCount cannot be negative in eventGeneration spec")
@@ -232,8 +228,8 @@ func validateSpecFields(ss SinkSpec) error {
 // prepareSimData handles all calculations that can be done prior to actual eventSim
 // execution, to reduce CPU load.
 func (e *eventSim) prepareSimData() (err error) {
-	e.frequencyRanges = createFrequencyRanges(e.sinkSpec.EventSpec.Fields)
-	e.peakTime, err = createSinusoidPeakTime(e.sinkSpec.EventGeneration.PeakTime)
+	e.frequencyRanges = createFrequencyRanges(e.sourceSpec.EventSpec.Fields)
+	e.peakTime, err = createSinusoidPeakTime(e.sourceSpec.EventGeneration.PeakTime)
 	if err != nil {
 		return err
 	}
@@ -264,11 +260,11 @@ func (e *eventSim) StreamExtract(
 
 	var events []entity.Event
 
-	e.notifier.Notify(entity.NotifyLevelInfo, "Starting up eventSim with sink spec: %+v", e.sinkSpec)
+	e.notifier.Notify(entity.NotifyLevelInfo, "Starting up eventSim with source spec: %+v", e.sourceSpec)
 	rand.Seed(time.Now().UnixNano())
 
 	for {
-		time.Sleep(time.Duration(e.sinkSpec.SimResolutionMilliseconds) * time.Millisecond)
+		sleepCtx(ctx, time.Duration(e.sourceSpec.SimResolutionMilliseconds)*time.Millisecond)
 
 		// An Extractor should check if its context has been cancelled, e.g. due to service shutting down
 		if ctx.Err() == context.Canceled {
@@ -311,7 +307,7 @@ func (e *eventSim) createEvents() (events []entity.Event, err error) {
 	nbEventsToCreate := e.calculateEventCount()
 	for i := 0; i < nbEventsToCreate; i++ {
 		var event []byte
-		event, err = e.createEvent(e.sinkSpec.EventSpec)
+		event, err = e.createEvent(e.sourceSpec.EventSpec)
 		if err != nil {
 			return nil, err
 		}
@@ -325,7 +321,7 @@ func (e *eventSim) createEvents() (events []entity.Event, err error) {
 
 // calculateEventCount provides the value on how many events to generate for each eventsim trigger
 func (e *eventSim) calculateEventCount() int {
-	g := e.sinkSpec.EventGeneration
+	g := e.sourceSpec.EventGeneration
 	switch g.Type {
 	case EventGenTypeRandom:
 		return randInt(g.MinCount, g.MaxCount)
@@ -554,4 +550,14 @@ func (e *eventSim) ExtractFromSink(ctx context.Context, query entity.ExtractorQu
 }
 func (e *eventSim) SendToSource(ctx context.Context, event any) (string, error) {
 	return "", nil
+}
+
+// A context aware sleep func returning true if proper timeout after sleep and false if ctx canceled
+func sleepCtx(ctx context.Context, delay time.Duration) bool {
+	select {
+	case <-time.After(delay):
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"github.com/zpiroux/geist/entity"
 	"github.com/zpiroux/geist/internal/pkg/admin"
 	"github.com/zpiroux/geist/internal/pkg/entity/channel"
+	"github.com/zpiroux/geist/internal/pkg/entity/eventsim"
 	"github.com/zpiroux/geist/internal/pkg/entity/void"
 	"github.com/zpiroux/geist/internal/service"
 )
@@ -21,6 +22,7 @@ type Config struct {
 	AdminStream AdminStreamConfig
 	Ops         OpsConfig
 	Hooks       HookConfig
+	EventSim    EventSimConfig
 
 	// Extractors and Loaders are added to the config with Config.RegisterExctractorType()
 	// and Config.RegisterLoaderType().
@@ -94,6 +96,18 @@ type HookConfig struct {
 	PreTransformHookFunc entity.PreTransformHookFunc
 }
 
+// EventSimConfig enables using the "eventsim" source type with custom configurations.
+type EventSimConfig struct {
+
+	// For random string generation with a custom character set (the built-in default
+	// is English alphabet), add them here on the format:
+	// myCustomCharsets := map[string][]rune{
+	//     "myCharset1": []rune("0123456789"),
+	//     "myCharset2": []rune("xyz!"),
+	// }
+	Charsets map[string][]rune
+}
+
 // NewConfig returns an initialized Config struct, required for geist.New().
 // With this config applicable Source/Sink extractors/loaders should be registered
 // before calling geist.New().
@@ -139,6 +153,7 @@ func preProcessConfig(config *Config) service.Config {
 
 	// Register native loader/sink types
 	config.registerExtractorType(channel.NewExtractorFactory())
+	config.registerExtractorType(eventsim.NewExtractorFactory(config.EventSim.Charsets))
 	config.registerLoaderType(void.NewLoaderFactory())
 
 	// Convert external config to internal

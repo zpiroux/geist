@@ -87,6 +87,48 @@ var testSpec2 = []byte(`
    }
 }`)
 
+var testSpec3 = []byte(`
+{
+   "namespace": "geist",
+   "streamIdSuffix": "test3",
+   "description": "Simple eventsim test spec",
+   "version": 1,
+   "source": {
+      "type": "eventsim",
+      "config": {
+         "customConfig": {
+            "simResolutionMilliseconds": 1000000,
+            "eventSpec": {
+               "fields": [
+                  {
+                     "field": "foo.someString",
+                     "randomizedValue": {
+                        "type": "string",
+                        "min": 4,
+                        "max": 9
+                     }
+                  }
+               ]
+            }
+         }
+      }
+   },
+   "transform": {
+      "extractFields": [
+         {
+            "fields": [
+               {
+                  "id": "rawEvent"
+               }
+            ]
+         }
+      ]
+   },
+   "sink": {
+      "type": "void"
+   }
+}`)
+
 func TestGeist(t *testing.T) {
 
 	ctx := context.Background()
@@ -98,6 +140,7 @@ func TestGeist(t *testing.T) {
 	cfg := NewConfig()
 	cfg.Ops.Log = false
 	cfg.Registry.Env = "prod"
+	cfg.EventSim.Charsets = map[string][]rune{"myCharset": []rune("!#@")}
 	geist, err := New(ctx, cfg)
 	assert.NoError(t, err)
 
@@ -122,7 +165,7 @@ func TestGeist(t *testing.T) {
 	wgGeist.Wait()
 	close(notifyChan)
 	wgNotifyHandler.Wait()
-	assert.Equal(t, 26, nbNotificationEvents)
+	assert.Equal(t, 33, nbNotificationEvents)
 }
 
 func handleNotificationEvents(ch entity.NotifyChan, wg *sync.WaitGroup, nbEvents *int) {
@@ -136,15 +179,17 @@ func handleNotificationEvents(ch entity.NotifyChan, wg *sync.WaitGroup, nbEvents
 }
 
 const (
-	AdminSpec = "geist-adminevents-inmem"
-	RegSpec   = "geist-specs"
-	TestSpec1 = "geist-test1"
-	TestSpec2 = "geist-test2"
+	AdminSpec         = "geist-adminevents-inmem"
+	RegSpec           = "geist-specs"
+	TestSpec1         = "geist-test1"
+	TestSpec2         = "geist-test2"
+	TestSpec3         = "geist-test3"
+	ExpectedNbStreams = 3
 )
 
 func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing.T) {
 
-	var id1, id2, eventId string
+	var id1, id2, id3, eventId string
 
 	// Test register invalid spec
 	_, err := geist.RegisterStream(ctx, []byte("hi"))
@@ -181,10 +226,23 @@ func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing
 	}
 	assertEqualMetrics(t, expectedMetrics, geist.Metrics())
 
+	// Test registration of an eventsim stream
+	id3, err = geist.RegisterStream(ctx, testSpec3)
+	assert.NoError(t, err)
+	assert.Equal(t, TestSpec3, id3)
+	time.Sleep(time.Second)
+	expectedMetrics = map[string]entity.Metrics{
+		AdminSpec: {EventsProcessed: 3, Microbatches: 3, EventsStoredInSink: 3, SinkOperations: 3},
+		RegSpec:   {EventsProcessed: 3, Microbatches: 3, EventsStoredInSink: 3, SinkOperations: 3},
+		TestSpec1: {EventsProcessed: 0, EventsStoredInSink: 0},
+		TestSpec2: {EventsProcessed: 0, EventsStoredInSink: 0},
+	}
+	assertEqualMetrics(t, expectedMetrics, geist.Metrics())
+
 	// Test retrieving specs
 	specs, err := geist.GetStreamSpecs(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, 2, len(specs))
+	assert.Equal(t, ExpectedNbStreams, len(specs))
 	assertEqualMetrics(t, expectedMetrics, geist.Metrics())
 
 	specBytesOut, err := geist.GetStreamSpec(ctx, TestSpec1)
@@ -232,8 +290,8 @@ func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing
 	assert.Equal(t, "<noResourceId>", eventId)
 	assert.NoError(t, err)
 	expectedMetrics = map[string]entity.Metrics{
-		AdminSpec: {EventsProcessed: 2, Microbatches: 2, EventsStoredInSink: 2, SinkOperations: 2},
-		RegSpec:   {EventsProcessed: 2, Microbatches: 2, EventsStoredInSink: 2, SinkOperations: 2},
+		AdminSpec: {EventsProcessed: 3, Microbatches: 3, EventsStoredInSink: 3, SinkOperations: 3},
+		RegSpec:   {EventsProcessed: 3, Microbatches: 3, EventsStoredInSink: 3, SinkOperations: 3},
 		TestSpec1: {EventsProcessed: 1, Microbatches: 1, EventsStoredInSink: 1, SinkOperations: 1},
 		TestSpec2: {EventsProcessed: 1, Microbatches: 1, EventsStoredInSink: 1, SinkOperations: 1},
 	}
@@ -254,16 +312,18 @@ func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing
 	assert.NoError(t, err)
 
 	expectedMetrics = map[string]entity.Metrics{
-		AdminSpec: {EventsProcessed: 2, Microbatches: 2, EventsStoredInSink: 2, SinkOperations: 2},
-		RegSpec:   {EventsProcessed: 2, Microbatches: 2, EventsStoredInSink: 2, SinkOperations: 2},
+		AdminSpec: {EventsProcessed: 3, Microbatches: 3, EventsStoredInSink: 3, SinkOperations: 3},
+		RegSpec:   {EventsProcessed: 3, Microbatches: 3, EventsStoredInSink: 3, SinkOperations: 3},
 		TestSpec1: {EventsProcessed: 1, Microbatches: 1, EventsStoredInSink: 1, SinkOperations: 1},
 		TestSpec2: {EventsProcessed: 1, Microbatches: 1, EventsStoredInSink: 1, SinkOperations: 1},
 	}
 	metrics := geist.Metrics()
 	assertEqualMetrics(t, expectedMetrics, metrics)
 	for stream, m := range metrics {
-		assert.True(t, m.BytesProcessed > 0, stream)
-		assert.True(t, m.BytesIngested > 0, stream)
+		if stream != TestSpec3 {
+			assert.True(t, m.BytesProcessed > 0, stream)
+			assert.True(t, m.BytesIngested > 0, stream)
+		}
 	}
 	wg.Done()
 }
