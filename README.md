@@ -143,7 +143,7 @@ c := geist.NewConfig()
 c.Hooks.PreTransformHookFunc = MyEnricher
 g, err := geist.New(ctx, c)
 ...
-func MyEnricher(ctx context.Context, event *[]byte) entity.HookAction {
+func MyEnricher(ctx context.Context, spec *entity.Spec, event *[]byte) entity.HookAction {
     *event, err = geist.EnrichEvent(*event, "myNewField", "coolValue")
     return entity.HookActionProceed
 }
@@ -277,7 +277,6 @@ The simple spec below exemplifies an autonomous stream using Kafka as source and
     "source": {
         "type": "kafka",
         "config": {
-            "provider": "confluent",
             "topics": [
                 {
                     "env": "all",

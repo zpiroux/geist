@@ -9,7 +9,6 @@
    "source": {
       "type": "kafka",
       "config": {
-         "provider": "confluent",
          "topics": [
             {
                "env": "dev",

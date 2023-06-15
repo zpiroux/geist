@@ -195,7 +195,7 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 		// Apply injection of stream processing logic if requested
 		if e.config.PreTransformHookFunc != nil {
 
-			action := e.config.PreTransformHookFunc(ctx, e.stream.Spec().Id(), &event.Data)
+			action := e.config.PreTransformHookFunc(ctx, e.stream.Spec(), &event.Data)
 
 			switch action {
 			case entity.HookActionProceed:
@@ -338,9 +338,9 @@ func (e *Executor) Shutdown(ctx context.Context) {
 }
 
 func (e *Executor) maxRetryAttempts() int {
-	return e.stream.Spec().(*entity.Spec).Ops.MaxEventProcessingRetries
+	return e.stream.Spec().Ops.MaxEventProcessingRetries
 }
 
 func (e *Executor) logEventData() bool {
-	return e.stream.Spec().(*entity.Spec).Ops.LogEventData
+	return e.stream.Spec().Ops.LogEventData
 }

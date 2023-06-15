@@ -61,12 +61,12 @@ func GetAllSpecsRaw(testDirPath string) map[string][]byte {
 type StreamRegistry struct {
 	testDirPath string
 	executor    igeist.Executor
-	specs       map[string]igeist.Spec
+	specs       map[string]*entity.Spec
 }
 
 func NewStreamRegistry(testDirPath string) *StreamRegistry {
 	var r StreamRegistry
-	r.specs = make(map[string]igeist.Spec)
+	r.specs = make(map[string]*entity.Spec)
 	r.testDirPath = testDirPath
 
 	streamBuilder := NewStreamBuilder(&StreamEntityFactory{})
@@ -78,11 +78,11 @@ func NewStreamRegistry(testDirPath string) *StreamRegistry {
 	return &r
 }
 
-func (r *StreamRegistry) Put(ctx context.Context, id string, spec igeist.Spec) error {
-	if err := spec.(*entity.Spec).Validate(); err != nil {
+func (r *StreamRegistry) Put(ctx context.Context, id string, spec *entity.Spec) error {
+	if err := spec.Validate(); err != nil {
 		return err
 	}
-	r.specs[id] = spec.(*entity.Spec)
+	r.specs[id] = spec
 	return nil
 }
 
@@ -97,11 +97,11 @@ func (r *StreamRegistry) Fetch(ctx context.Context) error {
 	return nil
 }
 
-func (r *StreamRegistry) Get(ctx context.Context, id string) (igeist.Spec, error) {
+func (r *StreamRegistry) Get(ctx context.Context, id string) (*entity.Spec, error) {
 	return r.specs[id], nil
 }
 
-func (r *StreamRegistry) GetAll(ctx context.Context) (map[string]igeist.Spec, error) {
+func (r *StreamRegistry) GetAll(ctx context.Context) (map[string]*entity.Spec, error) {
 	return r.specs, nil
 }
 
@@ -117,7 +117,7 @@ func (r *StreamRegistry) ExistsWithSameOrHigherVersion(specBytes []byte) (bool, 
 	return false, nil
 }
 
-func (r *StreamRegistry) Validate(specBytes []byte) (igeist.Spec, error) {
+func (r *StreamRegistry) Validate(specBytes []byte) (*entity.Spec, error) {
 	spec, err := entity.NewSpec(specBytes)
 	if err == nil && spec != nil {
 		err = spec.Validate()
@@ -151,7 +151,7 @@ func (r *StreamRegistry) StreamId() string {
 	return r.executor.StreamId()
 }
 
-func (r *StreamRegistry) Spec() igeist.Spec {
+func (r *StreamRegistry) Spec() *entity.Spec {
 	return SpecSpec()
 }
 

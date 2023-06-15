@@ -56,8 +56,12 @@ var testSpec2 = []byte(`
    "version": 1,
    "opsPerEnv": {
       "prod": {
-         "streamsPerPod": 3
-      }
+         "streamsPerPod": 3,
+         "customProperties": {
+            "prop1": "prop1Value",
+            "prop2": "prop2Value"
+          }
+       }
    },
    "source": {
       "type": "geistapi"
@@ -262,6 +266,8 @@ func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing
 	spec, err = entity.NewSpec(specBytesOut)
 	assert.NoError(t, err, string(specBytesOut))
 	assert.Equal(t, 3, spec.Ops.StreamsPerPod, string(specBytesOut))
+	assert.Equal(t, "prop1Value", spec.Ops.CustomProperties["prop1"], string(specBytesOut))
+	assert.Equal(t, "prop2Value", spec.Ops.CustomProperties["prop2"], string(specBytesOut))
 
 	// Validate exposed stream spec
 	var xspec entity.Spec

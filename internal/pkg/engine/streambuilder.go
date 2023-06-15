@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/zpiroux/geist/entity"
 	"github.com/zpiroux/geist/internal/pkg/igeist"
 )
 
@@ -16,7 +17,7 @@ func NewStreamBuilder(entityFactory igeist.StreamEntityFactory) *StreamBuilder {
 	return &StreamBuilder{entityFactory: entityFactory}
 }
 
-func (s *StreamBuilder) Build(ctx context.Context, spec igeist.Spec) (igeist.Stream, error) {
+func (s *StreamBuilder) Build(ctx context.Context, spec *entity.Spec) (igeist.Stream, error) {
 
 	instance := createInstanceAlias()
 

@@ -9,7 +9,7 @@ import (
 )
 
 type Stream struct {
-	spec          igeist.Spec
+	spec          *entity.Spec
 	extractor     entity.Extractor
 	transformer   igeist.Transformer
 	loader        entity.Loader
@@ -17,7 +17,7 @@ type Stream struct {
 }
 
 func NewStream(
-	spec igeist.Spec,
+	spec *entity.Spec,
 	extractor entity.Extractor,
 	transformer igeist.Transformer,
 	loader entity.Loader,
@@ -32,7 +32,7 @@ func NewStream(
 	}
 }
 
-func (s *Stream) Spec() igeist.Spec {
+func (s *Stream) Spec() *entity.Spec {
 	return s.spec
 }
 

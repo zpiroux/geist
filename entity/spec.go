@@ -158,6 +158,10 @@ type Ops struct {
 	// without having to redeploy GEIST. To troubleshoot a specific stream a new version of the stream spec
 	// can be uploaded at run-time with this field set to true.
 	LogEventData bool `json:"logEventData"`
+
+	// CustomProperties can be used to configure stream processing in any type of custom
+	// connector or injected enrichment logic.
+	CustomProperties map[string]string `json:"customProperties"`
 }
 
 func (o *Ops) EnsureValidDefaults() {
@@ -193,7 +197,6 @@ type Source struct {
 }
 
 type SourceConfig struct {
-	Provider     string        `json:"provider,omitempty"` // Available options (only used for Kafka Source): "native" and "confluent"
 	Topics       []Topics      `json:"topics,omitempty"`
 	Subscription *Subscription `json:"subscription,omitempty"`
 
@@ -784,18 +787,6 @@ var specSchema = []byte(`
         "type": {
           "type": "string",
           "minLength": 1
-        },
-        "config": {
-          "type": "object",
-          "properties": {
-            "provider": {
-              "type": "string",
-              "enum": [
-                "native",
-                "confluent"
-              ]
-            }
-          }
         }
       }
     },
@@ -817,6 +808,9 @@ var specSchema = []byte(`
   },
   "additionalProperties": false,
   "$defs": {
+    "mapString": {
+      "type": "string"
+	},
     "ops": {
       "type": "object",
       "properties": {
@@ -852,7 +846,20 @@ var specSchema = []byte(`
         },
         "logEventData": {
           "type": "boolean"
-        }
+        },
+        "customProperties": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/mapString"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+		}
       },
       "additionalProperties": false
     }

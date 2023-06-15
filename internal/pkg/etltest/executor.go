@@ -21,7 +21,7 @@ func (e *MockExecutor) StreamId() string {
 	return e.stream.Spec().Id()
 }
 
-func (e *MockExecutor) Spec() igeist.Spec {
+func (e *MockExecutor) Spec() *entity.Spec {
 	return e.stream.Spec()
 }
 
