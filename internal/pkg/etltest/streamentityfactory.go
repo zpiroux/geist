@@ -35,9 +35,7 @@ func (s *StreamEntityFactory) SetAdminLoader(loader entity.Loader) {
 	s.adminLoader = loader
 }
 
-func (s *StreamEntityFactory) CreateExtractor(ctx context.Context, etlSpec igeist.Spec, instanceId string) (entity.Extractor, error) {
-
-	spec := etlSpec.(*entity.Spec)
+func (s *StreamEntityFactory) CreateExtractor(ctx context.Context, spec *entity.Spec, instanceId string) (entity.Extractor, error) {
 
 	switch spec.Source.Type {
 
@@ -59,9 +57,8 @@ func (s *StreamEntityFactory) CreateExtractor(ctx context.Context, etlSpec igeis
 	}
 }
 
-func (s *StreamEntityFactory) CreateSinkExtractor(ctx context.Context, etlSpec igeist.Spec, instanceId string) (entity.Extractor, error) {
+func (s *StreamEntityFactory) CreateSinkExtractor(ctx context.Context, spec *entity.Spec, instanceId string) (entity.Extractor, error) {
 
-	spec := etlSpec.(*entity.Spec)
 	switch spec.Sink.Type {
 
 	case EntityFirestore:
@@ -77,19 +74,17 @@ func (s *StreamEntityFactory) CreateSinkExtractor(ctx context.Context, etlSpec i
 	}
 }
 
-func (s *StreamEntityFactory) CreateTransformer(ctx context.Context, etlSpec igeist.Spec) (igeist.Transformer, error) {
+func (s *StreamEntityFactory) CreateTransformer(ctx context.Context, spec *entity.Spec) (igeist.Transformer, error) {
 
 	// Currently only supporting native GEIST Transformations
-	spec := etlSpec.(*entity.Spec)
 	switch spec.Transform.ImplId {
 	default:
 		return transform.NewTransformer(spec), nil
 	}
 }
 
-func (s *StreamEntityFactory) CreateLoader(ctx context.Context, etlSpec igeist.Spec, instanceId string) (entity.Loader, error) {
+func (s *StreamEntityFactory) CreateLoader(ctx context.Context, spec *entity.Spec, instanceId string) (entity.Loader, error) {
 
-	spec := etlSpec.(*entity.Spec)
 	switch spec.Sink.Type {
 
 	case

@@ -277,7 +277,7 @@ type HookFuncEvent struct {
 	SomeInputValue string
 }
 
-func preTransformHookFunc(ctx context.Context, streamId string, event *[]byte) entity.HookAction {
+func preTransformHookFunc(ctx context.Context, spec *entity.Spec, event *[]byte) entity.HookAction {
 
 	var (
 		e   HookFuncEvent
@@ -312,7 +312,7 @@ func preTransformHookFunc(ctx context.Context, streamId string, event *[]byte) e
 	case "invalidReturnValue":
 		return 76395
 	case "enrichWithStreamId":
-		*event, err = sjson.SetBytes(*event, "SomeInputValue", streamId)
+		*event, err = sjson.SetBytes(*event, "SomeInputValue", spec.Id())
 		if err != nil {
 			return entity.HookActionUnretryableError
 		}

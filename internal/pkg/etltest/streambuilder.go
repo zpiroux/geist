@@ -3,6 +3,7 @@ package etltest
 import (
 	"context"
 
+	"github.com/zpiroux/geist/entity"
 	"github.com/zpiroux/geist/internal/pkg/igeist"
 )
 
@@ -15,7 +16,7 @@ func NewStreamBuilder(entityFactory igeist.StreamEntityFactory) *StreamBuilder {
 	return &StreamBuilder{entityFactory: entityFactory}
 }
 
-func (s *StreamBuilder) Build(ctx context.Context, spec igeist.Spec) (igeist.Stream, error) {
+func (s *StreamBuilder) Build(ctx context.Context, spec *entity.Spec) (igeist.Stream, error) {
 	id := "mockId"
 	extractor, err := s.entityFactory.CreateExtractor(ctx, spec, id)
 	if err != nil {

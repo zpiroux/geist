@@ -86,6 +86,7 @@ func TestSpecModel(t *testing.T) {
 	assert.Equal(t, "my-cool-env", string(topicSpec.Env))
 
 	// Validate regexp compile
+	// TODO: Add test for timeconv
 	fileBytes, err = os.ReadFile("../test/specs/pubsubsrc-regexp-reqs-voidsink.json")
 	assert.NoError(t, err)
 	spec, err = NewSpec(fileBytes)
@@ -102,7 +103,11 @@ func TestSpecModel(t *testing.T) {
 	err = spec.Validate()
 	assert.NoError(t, err)
 
-	// TODO: Add test for timeconv
+	// Validate custom props
+	spec, err = NewSpec(specCustomProps)
+	require.NoError(t, err)
+	require.NotNil(t, spec)
+
 }
 
 func TestOpsPerEnv(t *testing.T) {
@@ -318,6 +323,38 @@ var (
   "description": "A spec for a minimal stream, using GEIST API as source",
   "ops": {
     "streamsPerPod": -1
+  },
+  "source": {
+    "type": "geistapi"
+  },
+  "transform": {
+    "extractFields": [
+      {
+        "fields": [
+          {
+            "id": "rawEvent"
+          }
+        ]
+      }
+    ]
+  },
+  "sink": {
+    "type": "void"
+  }
+}
+`)
+
+	specCustomProps = []byte(`
+{
+  "namespace": "geisttest",
+  "streamIdSuffix": "eventlogstream-1",
+  "version": 1,
+  "description": "A spec for a minimal stream, using GEIST API as source",
+  "ops": {
+    "customProperties": {
+      "prop1": "prop1Value",
+      "prop2": "prop2Value"
+    }
   },
   "source": {
     "type": "geistapi"

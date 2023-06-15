@@ -64,9 +64,8 @@ func (s *Supervisor) Init(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	for _, sp := range specs {
+	for _, spec := range specs {
 
-		spec := sp.(*entity.Spec)
 		if spec.IsDisabled() {
 			s.notifier.Notify(entity.NotifyLevelInfo, "Stream %s is disabled and will not be assigned to an executor", spec.Id())
 			continue
@@ -251,17 +250,16 @@ func (s *Supervisor) handleStreamRegistryModified(ctx context.Context, event adm
 			return fmt.Errorf(s.lgprfx() + "registry.Get() returned a nil spec"), false
 		}
 
-		streamSpec := spec.(*entity.Spec)
-		if streamSpec.IsDisabled() {
-			s.notifier.Notify(entity.NotifyLevelInfo, "New spec version is disabled for streamId '%s', just shutting down old one", streamSpec.Id())
-			s.shutdownStream(ctx, streamSpec.Id())
+		if spec.IsDisabled() {
+			s.notifier.Notify(entity.NotifyLevelInfo, "New spec version is disabled for streamId '%s', just shutting down old one", spec.Id())
+			s.shutdownStream(ctx, spec.Id())
 		} else {
 
-			err := s.createStreams(ctx, streamSpec)
+			err := s.createStreams(ctx, spec)
 			if err != nil {
 				return err, false
 			}
-			s.deployStreams(ctx, streamSpec.Id())
+			s.deployStreams(ctx, spec.Id())
 		}
 	}
 	return nil, false

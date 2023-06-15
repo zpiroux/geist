@@ -38,10 +38,10 @@ type Config struct {
 // service via GEIST REST API, ingesting specs in an ETL Stream with arbitrary Sinks/Loaders.
 type StreamRegistry struct {
 	config      Config
-	loader      entity.Loader          // where to store the specs
-	executor    igeist.Executor        // internal handling of stream registrations
-	adminStream igeist.Stream          // for sending registry change events
-	specs       map[string]igeist.Spec // in-mem cache of specs
+	loader      entity.Loader           // where to store the specs
+	executor    igeist.Executor         // internal handling of stream registrations
+	adminStream igeist.Stream           // for sending registry change events
+	specs       map[string]*entity.Spec // in-mem cache of specs
 	notifier    *notify.Notifier
 }
 
@@ -49,7 +49,7 @@ func NewStreamRegistry(config Config, executor igeist.Executor, notifyChan entit
 
 	sr := &StreamRegistry{
 		config:   config,
-		specs:    make(map[string]igeist.Spec),
+		specs:    make(map[string]*entity.Spec),
 		executor: executor,
 	}
 
@@ -75,7 +75,7 @@ func (r *StreamRegistry) SetLoader(loader entity.Loader) {
 // inside ProcessEvent(), which in turn relies on the assigned Loader to store the spec.
 // It is currently only used internally from StreamRegistry's ProcessEvent function as
 // part of Supervisor managed updated of new specs, thus no mutex needed on specs map.
-func (r *StreamRegistry) Put(ctx context.Context, id string, spec igeist.Spec) (err error) {
+func (r *StreamRegistry) Put(ctx context.Context, id string, spec *entity.Spec) (err error) {
 	spec, err = r.adjustOpsConfig(spec)
 	if err != nil {
 		return err
@@ -85,22 +85,21 @@ func (r *StreamRegistry) Put(ctx context.Context, id string, spec igeist.Spec) (
 }
 
 // adjustOpsConfig sets the desired ops config based on current environment, if specified.
-func (r *StreamRegistry) adjustOpsConfig(spec igeist.Spec) (igeist.Spec, error) {
-	s := spec.(*entity.Spec)
-	if s.OpsPerEnv == nil || r.config.Env == "" {
+func (r *StreamRegistry) adjustOpsConfig(spec *entity.Spec) (*entity.Spec, error) {
+	if spec.OpsPerEnv == nil || r.config.Env == "" {
 		return spec, nil
 	}
-	ops, ok := s.OpsPerEnv[r.config.Env]
+	ops, ok := spec.OpsPerEnv[r.config.Env]
 	if !ok {
-		specEnvs := make([]string, 0, len(s.OpsPerEnv))
-		for k := range s.OpsPerEnv {
+		specEnvs := make([]string, 0, len(spec.OpsPerEnv))
+		for k := range spec.OpsPerEnv {
 			specEnvs = append(specEnvs, k)
 		}
-		return spec, fmt.Errorf("invalid environment field match in spec %s, Registry env: %s, Spec envs: %v", s.Id(), r.config.Env, specEnvs)
+		return spec, fmt.Errorf("invalid environment field match in spec %s, Registry env: %s, Spec envs: %v", spec.Id(), r.config.Env, specEnvs)
 	}
-	s.Ops = ops
-	s.Ops.EnsureValidDefaults()
-	return s, nil
+	spec.Ops = ops
+	spec.Ops.EnsureValidDefaults()
+	return spec, nil
 }
 
 const notifyCorruptSpec = "Stored spec is corrupt and will be disregarded, err: %s, specData: %s"
@@ -142,14 +141,14 @@ func (r *StreamRegistry) Fetch(ctx context.Context) error {
 	return nil
 }
 
-func (r *StreamRegistry) Get(ctx context.Context, id string) (igeist.Spec, error) {
+func (r *StreamRegistry) Get(ctx context.Context, id string) (*entity.Spec, error) {
 	if spec, ok := r.specs[id]; ok {
 		return spec, nil
 	}
 	return nil, fmt.Errorf("spec not found")
 }
 
-func (r *StreamRegistry) GetAll(ctx context.Context) (map[string]igeist.Spec, error) {
+func (r *StreamRegistry) GetAll(ctx context.Context) (map[string]*entity.Spec, error) {
 	return r.specs, nil
 }
 
@@ -172,14 +171,14 @@ func (r *StreamRegistry) ExistsWithSameOrHigherVersion(specBytes []byte) (bool, 
 		return false, nil
 	}
 
-	if spec.Version <= existingSpec.(*entity.Spec).Version {
+	if spec.Version <= existingSpec.Version {
 		return true, nil
 	}
 
 	return false, nil
 }
 
-func (r *StreamRegistry) Validate(specBytes []byte) (igeist.Spec, error) {
+func (r *StreamRegistry) Validate(specBytes []byte) (*entity.Spec, error) {
 	return entity.NewSpec(specBytes)
 }
 

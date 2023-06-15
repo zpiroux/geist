@@ -23,7 +23,7 @@ func TestRegistry(t *testing.T) {
 	spec, err := registry.Get(ctx, SpecKafkaSrcBigtableSinkPlayer)
 	require.NoError(t, err)
 
-	var geistSpec = spec.(*entity.Spec)
+	var geistSpec = spec
 	assert.NotZero(t, len(geistSpec.Namespace))
 	assert.NotZero(t, len(geistSpec.StreamIdSuffix))
 

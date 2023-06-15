@@ -49,7 +49,7 @@ func TestStreamRegistryFetch(t *testing.T) {
 
 	tPrintf("\n%s\n", "registry.GetAll() returned:")
 	for _, spec := range specs {
-		tPrintf("Spec with data: %+v\n\n", spec.(*entity.Spec))
+		tPrintf("Spec with data: %+v\n\n", spec)
 	}
 
 	stream, err = engine.NewStreamBuilder(etltest.NewStreamEntityFactory()).Build(ctx, etltest.SpecSpecInMem())
@@ -67,7 +67,7 @@ func TestStreamRegistryFetch(t *testing.T) {
 
 	tPrintf("\n%s\n", "registry.GetAll() returned:")
 	for _, spec := range specs {
-		tPrintf("Spec with data: %+v\n\n", spec.(*entity.Spec))
+		tPrintf("Spec with data: %+v\n\n", spec)
 	}
 }
 
@@ -114,8 +114,8 @@ func TestRunStreamRegistry(t *testing.T) {
 	storedSpec, err = registry.Get(ctx, spec.Id())
 	assert.NoError(t, err)
 
-	assert.Equal(t, storedSpec.(*entity.Spec).OpsPerEnv[envProd].StreamsPerPod, 16)
-	assert.Equal(t, storedSpec.(*entity.Spec).Ops.StreamsPerPod, 16)
+	assert.Equal(t, storedSpec.OpsPerEnv[envProd].StreamsPerPod, 16)
+	assert.Equal(t, storedSpec.Ops.StreamsPerPod, 16)
 
 	cancel()
 	wg.Wait()
@@ -168,7 +168,7 @@ func handleNotificationEvents(notifyChan entity.NotifyChan) {
 
 type RegStreamEntityFactoryMock struct{}
 
-func (r *RegStreamEntityFactoryMock) CreateSinkExtractor(ctx context.Context, spec igeist.Spec) (entity.Extractor, error) {
+func (r *RegStreamEntityFactoryMock) CreateSinkExtractor(ctx context.Context, spec *entity.Spec) (entity.Extractor, error) {
 
 	m := NewMockSinkExtractor()
 	m.loadEventIntoSink(tReg, "../../../test/specs/pubsubsrc-kafkasink-foologs.json")
@@ -177,13 +177,13 @@ func (r *RegStreamEntityFactoryMock) CreateSinkExtractor(ctx context.Context, sp
 	return m, nil
 }
 
-func (r *RegStreamEntityFactoryMock) CreateExtractor(ctx context.Context, spec igeist.Spec) (entity.Extractor, error) {
-	return etltest.NewMockExtractor(spec.(*entity.Spec).Source.Config), nil
+func (r *RegStreamEntityFactoryMock) CreateExtractor(ctx context.Context, spec *entity.Spec) (entity.Extractor, error) {
+	return etltest.NewMockExtractor(spec.Source.Config), nil
 }
-func (r *RegStreamEntityFactoryMock) CreateTransformer(ctx context.Context, spec igeist.Spec) (igeist.Transformer, error) {
+func (r *RegStreamEntityFactoryMock) CreateTransformer(ctx context.Context, spec *entity.Spec) (igeist.Transformer, error) {
 	return etltest.NewMockTransformer(entity.Transform{}), nil
 }
-func (r *RegStreamEntityFactoryMock) CreateLoader(ctx context.Context, spec igeist.Spec) (entity.Loader, error) {
+func (r *RegStreamEntityFactoryMock) CreateLoader(ctx context.Context, spec *entity.Spec) (entity.Loader, error) {
 	return etltest.NewMockLoader(), nil
 }
 

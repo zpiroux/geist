@@ -7,7 +7,7 @@ import (
 )
 
 type Stream interface {
-	Spec() Spec
+	Spec() *entity.Spec
 	Instance() string
 	Extractor() entity.Extractor
 	Transformer() Transformer
