@@ -23,8 +23,9 @@ const (
 )
 
 var (
-	ErrHookUnretryableError = errors.New("PreTransfromHookFunc reported unretryable error")
-	ErrHookInvalidAction    = errors.New("PreTransfromHookFunc returned invalid action value")
+	ErrHookRetryableError   = errors.New("Pre/PostTransfromHookFunc reported retryable error")
+	ErrHookUnretryableError = errors.New("Pre/PostTransfromHookFunc reported unretryable error")
+	ErrHookInvalidAction    = errors.New("Pre/PostTransfromHookFunc returned invalid action value")
 )
 
 // Stream Executors operates an ETL stream, from Source to Transform to Sink, as specified by
@@ -194,30 +195,11 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 
 		// Apply injection of stream processing logic if requested
 		if e.config.PreTransformHookFunc != nil {
-
-			action := e.config.PreTransformHookFunc(ctx, e.stream.Spec(), &event.Data)
-
-			switch action {
+			switch action := e.config.PreTransformHookFunc(ctx, e.stream.Spec(), &event.Data); action {
 			case entity.HookActionProceed:
 				// event processing to continue as normal
-			case (entity.HookActionSkip):
-				result.Status = entity.ExecutorStatusSuccessful
-				result.Error = nil
-				result.Retryable = false
-				return result
-			case (entity.HookActionUnretryableError):
-				result.Status = entity.ExecutorStatusError
-				result.Error = ErrHookUnretryableError
-				result.Retryable = false
-				return result
-			case (entity.HookActionShutdown):
-				result.Status = entity.ExecutorStatusShutdown
-				return result
 			default:
-				result.Status = entity.ExecutorStatusError
-				result.Error = fmt.Errorf("%w : %v", ErrHookInvalidAction, action)
-				result.Retryable = false
-				return result
+				return resultFromHookAction(action)
 			}
 		}
 
@@ -231,10 +213,22 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 			e.notifier.Notify(entity.NotifyLevelDebug, "Event transformed into: %v", transEvent)
 		}
 
-		if transEvent != nil {
-			bytesIngested += int64(len(event.Data))
-			transformed = append(transformed, transEvent...)
+		if transEvent == nil {
+			continue
 		}
+
+		// Apply injection of stream processing logic if requested
+		if e.config.PostTransformHookFunc != nil {
+			switch action := e.config.PostTransformHookFunc(ctx, e.stream.Spec(), &transEvent); action {
+			case entity.HookActionProceed:
+				// event processing to continue as normal
+			default:
+				return resultFromHookAction(action)
+			}
+		}
+
+		bytesIngested += int64(len(event.Data))
+		transformed = append(transformed, transEvent...)
 	}
 
 	if len(transformed) == 0 {
@@ -246,6 +240,35 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 
 	if result.Error == nil {
 		atomic.AddInt64(&e.sinkMetrics.Bytes, bytesIngested)
+	}
+	return result
+}
+
+func resultFromHookAction(action entity.HookAction) (result entity.EventProcessingResult) {
+	switch action {
+	case entity.HookActionProceed:
+		// event processing to continue as normal --> ignoring setting result values
+	case entity.HookActionSkip:
+		result.Status = entity.ExecutorStatusSuccessful
+		result.Error = nil
+		result.Retryable = false
+	case entity.HookActionRetryableError:
+		// Assuming applicable retries were made by hook func, which leads to below
+		// result.Status, which in turn will lead to a stream restart with increased
+		// exponential back-off.
+		result.Status = entity.ExecutorStatusRetriesExhausted
+		result.Error = ErrHookRetryableError
+		result.Retryable = true
+	case entity.HookActionUnretryableError:
+		result.Status = entity.ExecutorStatusError
+		result.Error = ErrHookUnretryableError
+		result.Retryable = false
+	case entity.HookActionShutdown:
+		result.Status = entity.ExecutorStatusShutdown
+	default:
+		result.Status = entity.ExecutorStatusError
+		result.Error = fmt.Errorf("%w : %v", ErrHookInvalidAction, action)
+		result.Retryable = false
 	}
 	return result
 }

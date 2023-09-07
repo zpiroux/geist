@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/tidwall/sjson"
 	"github.com/zpiroux/geist/entity"
+	"github.com/zpiroux/geist/entity/transform"
 	"github.com/zpiroux/geist/internal/pkg/etltest"
 )
 
@@ -35,6 +36,35 @@ var minimalStreamSpec = []byte(`
    }
 }`)
 
+var specForPostTransformHookTest = []byte(`
+{
+    "namespace": "geisttest",
+    "streamIdSuffix": "posttransformhooktest",
+    "description": "A spec for testing post transform hooks",
+    "version": 1,
+	"ops": {
+		"logEventData": true
+	},
+    "source": {
+        "type": "geistapi"
+    },
+    "transform": {
+        "extractFields": [
+            {
+                "fields": [
+                    {
+                        "id": "testType",
+                        "jsonPath": "TestType"
+                    }
+                ]
+            }
+        ]
+    },
+    "sink": {
+        "type": "void"
+    }
+}`)
+
 var tinyEvent = []byte(`
 {
    "coolField": "coolValue",
@@ -52,7 +82,87 @@ func tinyTestEvent(ts time.Time) []entity.Event {
 var streamLoadAttempts int
 
 // Test Hook logic
-func TestExecutorHookLogic(t *testing.T) {
+
+var HookLogicTestCases = []struct {
+	name                        string
+	event                       HookFuncEvent
+	expectedIngestion           bool
+	expectedEnrichedEventInSink string
+	expectedPostHookKeyValue    []string
+	expectedStreamLoadAttempts  int
+	expectedResult              entity.EventProcessingResult
+}{
+	{
+		name:                       "Normal flow without enrichment",
+		event:                      HookFuncEvent{TestType: "continue"},
+		expectedIngestion:          true,
+		expectedStreamLoadAttempts: 1,
+		expectedResult:             entity.EventProcessingResult{Status: entity.ExecutorStatusSuccessful, ResourceId: properResourceId},
+	},
+	{
+		name:                        "Normal flow with enrichment (field modification)",
+		event:                       HookFuncEvent{TestType: "modifyExistingField", SomeInputValue: "foo"},
+		expectedIngestion:           true,
+		expectedEnrichedEventInSink: "{\"TestType\":\"modifyExistingField\",\"SomeInputValue\":\"foo + myEnrichedValue\"}",
+		expectedPostHookKeyValue:    []string{"testType", "mutatedTestTypeValue"},
+		expectedStreamLoadAttempts:  1,
+		expectedResult:              entity.EventProcessingResult{Status: entity.ExecutorStatusSuccessful, ResourceId: properResourceId},
+	},
+	{
+		name:                        "Normal flow with enrichment (adding a new field)",
+		event:                       HookFuncEvent{TestType: "injectNewField", SomeInputValue: "bar"},
+		expectedIngestion:           true,
+		expectedEnrichedEventInSink: "{\"TestType\":\"injectNewField\",\"SomeInputValue\":\"bar\",\"myInjectedField\":\"coolValue\"}",
+		expectedPostHookKeyValue:    []string{"myInjectedField", "myInjectedFieldValue"},
+		expectedStreamLoadAttempts:  1,
+		expectedResult:              entity.EventProcessingResult{Status: entity.ExecutorStatusSuccessful, ResourceId: properResourceId},
+	},
+	{
+		name:                       "HookFunc decides event to be skipped",
+		event:                      HookFuncEvent{TestType: "skip"},
+		expectedIngestion:          false,
+		expectedStreamLoadAttempts: 0,
+		expectedResult:             entity.EventProcessingResult{Status: entity.ExecutorStatusSuccessful},
+	},
+	{
+		name:                       "HookFunc decides it want to report back a retryable error",
+		event:                      HookFuncEvent{TestType: "retryableError"},
+		expectedIngestion:          false,
+		expectedStreamLoadAttempts: 0,
+		expectedResult:             entity.EventProcessingResult{Status: entity.ExecutorStatusRetriesExhausted, Error: ErrHookRetryableError, Retryable: true},
+	},
+	{
+		name:                       "HookFunc decides it want to report back a unretryable error",
+		event:                      HookFuncEvent{TestType: "unretryableError"},
+		expectedIngestion:          false,
+		expectedStreamLoadAttempts: 0,
+		expectedResult:             entity.EventProcessingResult{Status: entity.ExecutorStatusError, Error: ErrHookUnretryableError, Retryable: false},
+	},
+	{
+		name:                       "HookFunc decides the stream should be terminated",
+		event:                      HookFuncEvent{TestType: "shutdown"},
+		expectedIngestion:          false,
+		expectedStreamLoadAttempts: 0,
+		expectedResult:             entity.EventProcessingResult{Status: entity.ExecutorStatusShutdown},
+	},
+	{
+		name:                       "HookFunc has a bug and returns invalid action value",
+		event:                      HookFuncEvent{TestType: "invalidReturnValue"},
+		expectedIngestion:          false,
+		expectedStreamLoadAttempts: 0,
+		expectedResult:             entity.EventProcessingResult{Status: entity.ExecutorStatusError, Error: fmt.Errorf("%w : %v", ErrHookInvalidAction, 76395)},
+	},
+	{
+		name:                        "Check received stream ID",
+		event:                       HookFuncEvent{TestType: "enrichWithStreamId"},
+		expectedIngestion:           true,
+		expectedEnrichedEventInSink: "{\"TestType\":\"enrichWithStreamId\",\"SomeInputValue\":\"geisttest-minspec\"}",
+		expectedStreamLoadAttempts:  1,
+		expectedResult:              entity.EventProcessingResult{Status: entity.ExecutorStatusSuccessful, ResourceId: properResourceId},
+	},
+}
+
+func TestExecutorPreTransformHookLogic(t *testing.T) {
 
 	spec, err := entity.NewSpec(minimalStreamSpec)
 	assert.NoError(t, err)
@@ -78,187 +188,99 @@ func TestExecutorHookLogic(t *testing.T) {
 	executor := NewExecutor(config, stream)
 	assert.Equal(t, entity.Metrics{}, executor.Metrics())
 
-	// Normal flow, no enrichment
-	event := HookFuncEvent{TestType: "continue"}
-	e := newHookEvent(event)
-	streamLoadAttempts = 0
-	expectedBytesProcessed := len(e[0].Data)
-	result := executor.ProcessEvent(context.Background(), e)
-	assert.NoError(t, result.Error)
-	assert.Equal(t, properResourceId, result.ResourceId)
-	assert.Equal(t, 1, streamLoadAttempts)
-	assert.Equal(t, entity.ExecutorStatusSuccessful, result.Status)
-	assertEqualMetrics(t, entity.Metrics{
-		Microbatches:       1,
-		EventsProcessed:    1,
-		BytesProcessed:     int64(expectedBytesProcessed),
-		EventsStoredInSink: 1,
-		SinkOperations:     1,
-		BytesIngested:      int64(expectedBytesProcessed),
-	}, executor.Metrics())
+	var (
+		expectedMetrics entity.Metrics
+		bytesIngested   int64
+	)
+	for _, tc := range HookLogicTestCases {
+		t.Run(tc.name, func(t *testing.T) {
 
-	// Normal flow, with enrichment (event field modification)
-	event = HookFuncEvent{TestType: "enrichAndContinue", SomeInputValue: "foo"}
-	streamLoadAttempts = 0
-	e = newHookEvent(event)
-	expectedBytesProcessed += len(e[0].Data)
-	result = executor.ProcessEvent(context.Background(), e)
-	assert.NoError(t, result.Error)
-	assert.Equal(t, properResourceId, result.ResourceId)
-	assert.Equal(t, 1, streamLoadAttempts)
-	assert.Equal(t, entity.ExecutorStatusSuccessful, result.Status)
-	eventStoredInSink := loader.Data[0].Data["originalEventData"]
-	err = json.Unmarshal(eventStoredInSink.([]byte), &event)
+			e := newHookEvent(tc.event)
+			streamLoadAttempts = 0
+			expectedMetrics.Microbatches++
+			expectedMetrics.EventsProcessed++
+			expectedMetrics.BytesProcessed += int64(len(e[0].Data))
+			if tc.expectedIngestion {
+				expectedMetrics.EventsStoredInSink++
+				expectedMetrics.SinkOperations++
+				if tc.expectedEnrichedEventInSink != "" {
+					bytesIngested = int64(len(tc.expectedEnrichedEventInSink))
+				} else {
+					bytesIngested = int64(len(e[0].Data))
+				}
+				expectedMetrics.BytesIngested = expectedMetrics.BytesIngested + bytesIngested
+			}
+
+			result := executor.ProcessEvent(context.Background(), e)
+			assert.Equal(t, tc.expectedStreamLoadAttempts, streamLoadAttempts)
+			assert.Equal(t, tc.expectedResult, result)
+			assertEqualMetrics(t, expectedMetrics, executor.Metrics())
+
+			if tc.expectedIngestion && tc.expectedEnrichedEventInSink != "" {
+				eventStoredInSink := loader.Data[0].Data["originalEventData"]
+				assert.Equal(t, tc.expectedEnrichedEventInSink, string(eventStoredInSink.([]byte)))
+			}
+		})
+	}
+}
+
+func TestExecutorPostTransformHookLogic(t *testing.T) {
+
+	spec, err := entity.NewSpec(specForPostTransformHookTest)
 	assert.NoError(t, err)
-	assert.Equal(t, "foo + myEnrichedValue", event.SomeInputValue)
-	expectedBytesIngested := expectedBytesProcessed + len(" + myEnrichedValue")
-	assertEqualMetrics(t, entity.Metrics{
-		Microbatches:       2,
-		EventsProcessed:    2,
-		BytesProcessed:     int64(expectedBytesProcessed),
-		EventsStoredInSink: 2,
-		SinkOperations:     2,
-		BytesIngested:      int64(expectedBytesIngested),
-	}, executor.Metrics())
+	transformer := transform.NewTransformer(spec)
+	loader := &MockLoader_StoreLatest{}
+	stream := NewStream(
+		spec,
+		"teststream",
+		etltest.NewMockExtractor(spec.Source.Config),
+		transformer,
+		loader,
+		nil,
+	)
 
-	// Normal flow, with enrichment (adding a new field)
-	event = HookFuncEvent{TestType: "enrichAndContinue2", SomeInputValue: "bar"}
-	streamLoadAttempts = 0
-	e = newHookEvent(event)
-	expectedBytesProcessed += len(e[0].Data)
-	expectedBytesIngested += len(e[0].Data)
-	result = executor.ProcessEvent(context.Background(), e)
-	assert.NoError(t, result.Error)
-	assert.Equal(t, properResourceId, result.ResourceId)
-	assert.Equal(t, 1, streamLoadAttempts)
-	assert.Equal(t, entity.ExecutorStatusSuccessful, result.Status)
-	eventStoredInSink = loader.Data[0].Data["originalEventData"]
-	expectedEnrichedEventInSink := "{\"TestType\":\"enrichAndContinue2\",\"SomeInputValue\":\"bar\",\"myInjectedField\":\"coolValue\"}"
-	expectedBytesIngested = expectedBytesIngested + len(",\"myInjectedField\":\"coolValue\"")
-	assert.Equal(t, expectedEnrichedEventInSink, string(eventStoredInSink.([]byte)))
-	assertEqualMetrics(t, entity.Metrics{
-		Microbatches:       3,
-		EventsProcessed:    3,
-		BytesProcessed:     int64(expectedBytesProcessed),
-		EventsStoredInSink: 3,
-		SinkOperations:     3,
-		BytesIngested:      int64(expectedBytesIngested),
-	}, executor.Metrics())
+	notifyChan := make(entity.NotifyChan, 128)
+	go handleNotificationEvents(notifyChan)
+	time.Sleep(time.Second)
+	config := Config{
+		PostTransformHookFunc: postTransformHookFunc,
+		NotifyChan:            notifyChan,
+	}
 
-	// HookFunc decides event to be skipped
-	event.TestType = "skip"
-	streamLoadAttempts = 0
-	e = newHookEvent(event)
-	expectedBytesProcessed += len(e[0].Data)
-	result = executor.ProcessEvent(context.Background(), e)
-	assert.NoError(t, result.Error)
-	assert.Equal(t, "", result.ResourceId)
-	assert.Equal(t, 0, streamLoadAttempts)
-	assert.Equal(t, entity.ExecutorStatusSuccessful, result.Status)
-	assertEqualMetrics(t, entity.Metrics{
-		Microbatches:       4,
-		EventsProcessed:    4,
-		BytesProcessed:     int64(expectedBytesProcessed),
-		EventsStoredInSink: 3,
-		SinkOperations:     3,
-		BytesIngested:      int64(expectedBytesIngested),
-	}, executor.Metrics())
+	executor := NewExecutor(config, stream)
+	executor.notifier.SetNotifyLevel(entity.NotifyLevelDebug)
+	assert.Equal(t, entity.Metrics{}, executor.Metrics())
 
-	// HookFunc decides it want to report back an unretryable error
-	event.TestType = "unretryableError"
-	streamLoadAttempts = 0
-	e = newHookEvent(event)
-	expectedBytesProcessed += len(e[0].Data)
-	result = executor.ProcessEvent(context.Background(), e)
-	assert.EqualError(t, result.Error, ErrHookUnretryableError.Error())
-	assert.Equal(t, "", result.ResourceId)
-	assert.Equal(t, 0, streamLoadAttempts)
-	assert.Equal(t, entity.ExecutorStatusError, result.Status)
-	assert.False(t, result.Retryable)
-	assertEqualMetrics(t, entity.Metrics{
-		Microbatches:       5,
-		EventsProcessed:    5,
-		BytesProcessed:     int64(expectedBytesProcessed),
-		EventsStoredInSink: 3,
-		SinkOperations:     3,
-		BytesIngested:      int64(expectedBytesIngested),
-	}, executor.Metrics())
+	var expectedMetrics entity.Metrics
+	for _, tc := range HookLogicTestCases {
+		if tc.event.TestType == "enrichWithStreamId" {
+			continue
+		}
+		t.Run(tc.name, func(t *testing.T) {
 
-	// HookFunc decides the stream should be terminated
-	event.TestType = "shutdown"
-	streamLoadAttempts = 0
-	e = newHookEvent(event)
-	expectedBytesProcessed += len(e[0].Data)
-	result = executor.ProcessEvent(context.Background(), e)
-	assert.NoError(t, result.Error)
-	assert.Equal(t, "", result.ResourceId)
-	assert.Equal(t, 0, streamLoadAttempts)
-	assert.Equal(t, entity.ExecutorStatusShutdown, result.Status)
-	assert.False(t, result.Retryable)
-	assertEqualMetrics(t, entity.Metrics{
-		Microbatches:       6,
-		EventsProcessed:    6,
-		BytesProcessed:     int64(expectedBytesProcessed),
-		EventsStoredInSink: 3,
-		SinkOperations:     3,
-		BytesIngested:      int64(expectedBytesIngested),
-	}, executor.Metrics())
+			e := newHookEvent(tc.event)
+			streamLoadAttempts = 0
+			expectedMetrics.Microbatches++
+			expectedMetrics.EventsProcessed++
+			if tc.expectedIngestion {
+				expectedMetrics.EventsStoredInSink++
+				expectedMetrics.SinkOperations++
+			}
 
-	// HookFunc has a bug and returns invalid action value
-	event.TestType = "invalidReturnValue"
-	streamLoadAttempts = 0
-	e = newHookEvent(event)
-	expectedBytesProcessed += len(e[0].Data)
-	result = executor.ProcessEvent(context.Background(), e)
-	assert.Error(t, result.Error)
-	assert.True(t, errors.Is(result.Error, ErrHookInvalidAction))
-	assert.Equal(t, "", result.ResourceId)
-	assert.Equal(t, 0, streamLoadAttempts)
-	assert.Equal(t, entity.ExecutorStatusError, result.Status)
-	assert.False(t, result.Retryable)
-	assertEqualMetrics(t, entity.Metrics{
-		Microbatches:       7,
-		EventsProcessed:    7,
-		BytesProcessed:     int64(expectedBytesProcessed),
-		EventsStoredInSink: 3,
-		SinkOperations:     3,
-		BytesIngested:      int64(expectedBytesIngested),
-	}, executor.Metrics())
+			result := executor.ProcessEvent(context.Background(), e)
+			assert.Equal(t, tc.expectedStreamLoadAttempts, streamLoadAttempts)
+			assert.Equal(t, tc.expectedResult, result)
+			assert.Equal(t, expectedMetrics.Microbatches, executor.Metrics().Microbatches)
+			assert.Equal(t, expectedMetrics.EventsProcessed, executor.Metrics().EventsProcessed)
+			assert.Equal(t, expectedMetrics.EventsStoredInSink, executor.Metrics().EventsStoredInSink)
+			assert.Equal(t, expectedMetrics.SinkOperations, executor.Metrics().SinkOperations)
 
-	// Check received stream ID
-	event.TestType = "enrichWithStreamId"
-	streamLoadAttempts = 0
-	e = newHookEvent(event)
-	expectedBytesProcessed += len(e[0].Data)
-	result = executor.ProcessEvent(context.Background(), e)
-	assert.NoError(t, result.Error)
-	assert.Equal(t, entity.ExecutorStatusSuccessful, result.Status)
-	assert.Equal(t, 1, streamLoadAttempts)
-	eventStoredInSink = loader.Data[0].Data["originalEventData"]
-	err = json.Unmarshal(eventStoredInSink.([]byte), &event)
-	assert.NoError(t, err)
-	assert.Equal(t, spec.Id(), event.SomeInputValue)
-	eventStoredInSink = loader.Data[0].Data["originalEventData"]
-	expectedEnrichedEventInSink = "{\"TestType\":\"enrichWithStreamId\",\"SomeInputValue\":\"geisttest-minspec\"}"
-	expectedBytesIngested = expectedBytesIngested + len(expectedEnrichedEventInSink)
-	assert.Equal(t, expectedEnrichedEventInSink, string(eventStoredInSink.([]byte)))
-
-	m := executor.Metrics()
-	assertEqualMetrics(t, entity.Metrics{
-		Microbatches:       8,
-		EventsProcessed:    8,
-		BytesProcessed:     int64(expectedBytesProcessed),
-		EventsStoredInSink: 4,
-		SinkOperations:     4,
-		BytesIngested:      int64(expectedBytesIngested),
-	}, m)
-
-	assert.True(t, m.EventProcessingTimeMicros > 0)
-	assert.True(t, m.SinkProcessingTimeMicros > 0, m)
-
-	streamLoadAttempts = 0
-
-	time.Sleep(2 * time.Second)
+			if tc.expectedIngestion && len(tc.expectedPostHookKeyValue) > 0 {
+				enrichedFieldValue := getValueFromTransformed(tc.expectedPostHookKeyValue[0], loader.Data)
+				assert.Equal(t, tc.expectedPostHookKeyValue[1], enrichedFieldValue)
+			}
+		})
+	}
 }
 
 func handleNotificationEvents(notifyChan entity.NotifyChan) {
@@ -288,16 +310,14 @@ func preTransformHookFunc(ctx context.Context, spec *entity.Spec, event *[]byte)
 	switch e.TestType {
 	case "continue":
 		return entity.HookActionProceed
-	case "enrichAndContinue":
-		// Modify value in existing field in event
+	case "modifyExistingField":
 		e.SomeInputValue += " + myEnrichedValue"
 		*event, err = json.Marshal(e)
 		if err != nil {
 			return entity.HookActionUnretryableError
 		}
 		return entity.HookActionProceed
-	case "enrichAndContinue2":
-		// Inject a completely new field in the event
+	case "injectNewField":
 		*event, err = sjson.SetBytes(*event, "myInjectedField", "coolValue")
 		if err != nil {
 			return entity.HookActionUnretryableError
@@ -305,6 +325,8 @@ func preTransformHookFunc(ctx context.Context, spec *entity.Spec, event *[]byte)
 		return entity.HookActionProceed
 	case "skip":
 		return entity.HookActionSkip
+	case "retryableError":
+		return entity.HookActionRetryableError
 	case "unretryableError":
 		return entity.HookActionUnretryableError
 	case "shutdown":
@@ -320,6 +342,41 @@ func preTransformHookFunc(ctx context.Context, spec *entity.Spec, event *[]byte)
 	default:
 		return entity.HookActionInvalid
 	}
+}
+
+func postTransformHookFunc(ctx context.Context, spec *entity.Spec, event *[]*entity.Transformed) entity.HookAction {
+
+	switch getValueFromTransformed("testType", *event) {
+	case "continue":
+		return entity.HookActionProceed
+	case "modifyExistingField":
+		(*event)[0].Data["testType"] = "mutatedTestTypeValue"
+		return entity.HookActionProceed
+	case "injectNewField":
+		(*event)[0].Data["myInjectedField"] = "myInjectedFieldValue"
+		return entity.HookActionProceed
+	case "skip":
+		return entity.HookActionSkip
+	case "retryableError":
+		return entity.HookActionRetryableError
+	case "unretryableError":
+		return entity.HookActionUnretryableError
+	case "shutdown":
+		return entity.HookActionShutdown
+	case "invalidReturnValue":
+		return 76395
+	default:
+		return entity.HookActionInvalid
+	}
+}
+
+func getValueFromTransformed(key string, transEvent []*entity.Transformed) string {
+	for _, kv := range transEvent {
+		if value, ok := kv.Data[key]; ok {
+			return value.(string) // test func assuming only strings used
+		}
+	}
+	return ""
 }
 
 // Ensure Executor is resilient against bad extractor/source types

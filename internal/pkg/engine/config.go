@@ -5,9 +5,10 @@ import (
 )
 
 type Config struct {
-	RegSpec                   *entity.Spec                // Built-in spec for GEIST spec registrations
-	AdminSpec                 *entity.Spec                // Built-in spec for GEIST admin event notifications
-	PreTransformHookFunc      entity.PreTransformHookFunc `json:"-"`
+	RegSpec                   *entity.Spec                 // Built-in spec for GEIST spec registrations
+	AdminSpec                 *entity.Spec                 // Built-in spec for GEIST admin event notifications
+	PreTransformHookFunc      entity.PreTransformHookFunc  `json:"-"`
+	PostTransformHookFunc     entity.PostTransformHookFunc `json:"-"`
 	MaxStreamRetryIntervalSec int
 	NotifyChan                entity.NotifyChan `json:"-"`
 	Log                       bool
