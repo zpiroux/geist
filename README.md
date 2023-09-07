@@ -26,7 +26,7 @@ The Geist Go package is completely generic, only comprising the core engine and 
 Geist Source and Sink connectors are found in separate repos. Custom connectors can also be provided dynamically by the service using Geist, registering them via Geist API for immediate use in stream specs.
 
 ## Quick Start
-Prerequisites: Go 1.18
+Prerequisites: Go 1.19
 
 Install with:
 ```sh
@@ -120,38 +120,52 @@ The service using Geist could in this way also register its own custom connector
 For a complete working example of providing a custom connector, see the [Emitter Stream](test/example/emitterstream/main.go).
 
 ### Validated source connectors
-* [Kafka (vanilla and Confluent)](https://github.com/zpiroux/geist-connector-kafka)
+* [Kafka](https://github.com/zpiroux/geist-connector-kafka)
 * [Pubsub (GCP)](https://github.com/zpiroux/geist-connector-gcp)
 * Geist API (natively supported)
 
 ### Validated sink connectors
-* [Kafka (vanilla and Confluent)](https://github.com/zpiroux/geist-connector-kafka)
+* [Kafka](https://github.com/zpiroux/geist-connector-kafka)
+* [BigQuery (GCP)](https://github.com/zpiroux/geist-connector-bigquery)
 * [Firestore (GCP)](https://github.com/zpiroux/geist-connector-gcp)
 * [BigTable (GCP)](https://github.com/zpiroux/geist-connector-gcp)
-* [BigQuery (GCP)](https://github.com/zpiroux/geist-connector-gcp)
 
 ## Enrichment and custom stream logic
 The native transformation entity provides a set of common transformations.
-But to provide complete flexibility, adding capabilities for the Geist user to add custom logic such as enrichment of events, deduplication, complex filtering (if the native transform options are insufficient), etc., a client-managed hook function can be set in `geist.Config` prior to calling `geist.New()`.
+But to provide complete flexibility, adding capabilities for the Geist user to add custom logic such as enrichment of events, deduplication, complex filtering (if the native transform options are insufficient), etc., client-managed hook functions can be set in `geist.Config` prior to calling `geist.New()`.
+
+There are two different hook func types, `PreTransformHookFunc` and `PostTransformHookFunc`, which are called before and after event transformations.
 
 The function assigned to `geist.Config.Hooks.PreTransformHookFunc` will be called for each event retrieved by the _Extractor_. A pointer to the raw event is provided to the func, which could modify its contents before Geist continues with downstream transformations and Sink processing.
 
-The following example shows a hook func injecting a new field `"myNewField"` in the event JSON:
+The function assigned to `geist.Config.Hooks.PostTransformHookFunc` will be called similarly, but after transformations and providing the transformed field maps instead of the raw incoming event.
+
+The following example shows hook funcs injecting two new fields in the event, as eventually received by the sink.
 
 ```go
 c := geist.NewConfig()
-c.Hooks.PreTransformHookFunc = MyEnricher
+c.Hooks.PreTransformHookFunc = MyPreTransformEnricher
+c.Hooks.PostTransformHookFunc = MyPostTransformEnricher
 g, err := geist.New(ctx, c)
 ...
-func MyEnricher(ctx context.Context, spec *entity.Spec, event *[]byte) entity.HookAction {
-    *event, err = geist.EnrichEvent(*event, "myNewField", "coolValue")
+
+func MyPreTransformEnricher(ctx context.Context, spec *entity.Spec, event *[]byte) entity.HookAction {
+    *event, err = geist.EnrichEvent(*event, "myNewField1", "someValue") 
+    // geist.EnrichEvent() is just a convenience function, used here for example purposes
     return entity.HookActionProceed
 }
+
+func MyPostTransformEnricher(ctx context.Context, spec *entity.Spec, event *[]*entity.Transformed) entity.HookAction {
+    (*event)[0].Data["myNewField2"] = "someOtherValue"
+    return entity.HookActionProceed
+}
+
 ```
 Continued processing of each event can be controlled via the returned action value:
 ```go
 HookActionProceed          // continue processing of this event
 HookActionSkip             // skip processing of this event and take next
+HookActionRetryableError   // let Geist handle this event as a retryable error
 HookActionUnretryableError // let Geist handle this event as an unretryable error
 HookActionShutdown         // shut down this stream instance
 ````
@@ -162,7 +176,7 @@ The quick start example showed one category of streams (interactive) where the G
 
 The other category is when a Geist client sets up an autonomous stream between a source and sink.
 ### Autonomous streams
-Source set to `kafka` or `pubsub`.
+Source set to `kafka`, `pubsub` or similar stream data sources.
 
 The host service sets up a fully automated stream between a source and sink, with `geist.RegisterStream()`, e.g. consuming from Kafka and inserting into BigTable, and only manage start and stop of the stream.
 
@@ -187,10 +201,10 @@ This is the mode for which Geist was developed in the first place, and is meant 
 In this mode Geist functions as a generic run-time and stream management service, with an external wrapper API, e.g. REST API, provided by the hosting service, with which other services dynamically could register and deploy their own streams without any downtime or re-deployment of Geist or its hosting service.
 
 Registered specs are persisted by Geist with an internally defined (but customizable) Stream Spec.
-When a Geist host pod is started, either from a new deployment or pod scaling, all registered specs are fetched from the native sink storage and booted up.
-The default native spec is found in [regspec.go](internal/pkg/admin/regspec.go).
+When a Geist host pod is started, either from a new deployment or pod scaling, all registered specs are fetched from the specified sink storage and booted up.
+The default native spec is found in [regspec.go](internal/pkg/admin/regspec.go), but any custom storage type can be used (as specified in `geist.Config.Registry`), as long as it has a matching Geist connector.
 
-Any cross-pod synchronization, e.g. notification of newly updated stream specs, is done with an internal admin stream. It is managed and customizable in similar fashion as the Reg Spec and found in [adminspec.go](internal/pkg/admin/adminspec.go).
+Any cross-pod synchronization, e.g. notification of newly updated stream specs, is done with an internal admin stream. It is managed and customizable in similar fashion as the Reg Spec. The default native spec is found in [adminspec.go](internal/pkg/admin/adminspec.go), but any other custom source types can be used here as well, as specified in `geist.Config.AdminStream`.
 
 ## Stream Spec Format
 A stream spec has the following required main fields/parts (additional fields are described further below):
@@ -507,7 +521,7 @@ Example of generated event:
 ``` 
 
 ## Limitations and improvement areas
-Although Geist has been run in production with heavy load, no data-loss, and zero downtime for ~two years, it makes no guarantees that all combinations of stream spec options will work fully in all cases.
+Although Geist has been run in production with heavy load, no data-loss, and zero downtime for ~three years, it makes no guarantees that all combinations of stream spec options will work fully in all cases.
 
 The following types of streams have been run extensively and concurrently with high throughput:
 

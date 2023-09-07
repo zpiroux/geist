@@ -93,7 +93,8 @@ type OpsConfig struct {
 // HookConfig enables a Geist client to inject custom logic to the stream processing, such as
 // enrichment, deduplication, and filtering (if existing spec transform options not suitable).
 type HookConfig struct {
-	PreTransformHookFunc entity.PreTransformHookFunc
+	PreTransformHookFunc  entity.PreTransformHookFunc
+	PostTransformHookFunc entity.PostTransformHookFunc
 }
 
 // EventSimConfig enables using the "eventsim" source type with custom configurations.
@@ -169,6 +170,7 @@ func preProcessConfig(config *Config) service.Config {
 	c.Engine.EventLogInterval = config.Ops.EventLogInterval
 	c.Engine.MaxStreamRetryIntervalSec = config.Ops.MaxStreamRetryIntervalSec
 	c.Engine.PreTransformHookFunc = config.Hooks.PreTransformHookFunc
+	c.Engine.PostTransformHookFunc = config.Hooks.PostTransformHookFunc
 
 	return c
 }
