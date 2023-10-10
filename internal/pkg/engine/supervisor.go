@@ -59,23 +59,20 @@ func NewSupervisor(
 }
 
 func (s *Supervisor) Init(ctx context.Context) error {
-
 	specs, err := s.registry.GetAll(ctx)
 	if err != nil {
 		return err
 	}
-	for _, spec := range specs {
 
+	for _, spec := range specs {
 		if spec.IsDisabled() {
 			s.notifier.Notify(entity.NotifyLevelInfo, "Stream %s is disabled and will not be assigned to an executor", spec.Id())
 			continue
 		}
-
 		if err := s.createStreams(ctx, spec); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -86,19 +83,10 @@ func (s *Supervisor) Registry() igeist.StreamRegistry {
 
 // Run is the main entry point for GEIST execution of all streams
 func (s *Supervisor) Run(ctx context.Context, ready *sync.WaitGroup) error {
-
 	s.notifier.Notify(entity.NotifyLevelInfo, "Starting up with config: %+v", s.config)
 
-	var nbExecutorsDeployed int
-	executorMap := s.archivist.GrantExclusiveAccess()
-	for _, executors := range *executorMap {
-		for _, executor := range executors {
-			s.deployExecutor(ctx, executor)
-			nbExecutorsDeployed++
-		}
-	}
-	s.notifier.Notify(entity.NotifyLevelInfo, "%d executors deployed", nbExecutorsDeployed)
-	s.archivist.RevokeExclusiveAccess()
+	nbExecutorsDeployed := s.deployAllStreams(ctx)
+	s.notifier.Notify(entity.NotifyLevelInfo, "All (%d) executors deployed", nbExecutorsDeployed)
 
 	// Everything is up and running, including all previously registered streams.
 	ready.Done()
@@ -115,7 +103,6 @@ func (s *Supervisor) deployExecutor(ctx context.Context, executor igeist.Executo
 }
 
 func (s *Supervisor) Metrics() map[string]entity.Metrics {
-
 	var metricsPerStream entity.Metrics
 	metrics := make(map[string]entity.Metrics)
 
@@ -123,7 +110,6 @@ func (s *Supervisor) Metrics() map[string]entity.Metrics {
 	defer s.archivist.RevokeExclusiveAccess()
 
 	for streamId, executors := range *executorMap {
-
 		metricsPerStream.Reset()
 		for _, executor := range executors {
 			if executor.Stream().Spec().IsDisabled() {
@@ -152,31 +138,26 @@ func (s *Supervisor) Shutdown(ctx context.Context) {
 // Stream returns the first (main) stream instance for a stream id, for use with getting stream spec
 // info and stream publishing.
 func (s *Supervisor) Stream(id string) (igeist.Stream, error) {
-
 	executors := s.archivist.Get(id)
-
 	if len(executors) == 0 {
 		return nil, fmt.Errorf(s.lgprfx()+"stream with id '%s' not found", id)
 	}
-
 	return executors[0].Stream(), nil
 }
 
+// createStreams creates all stream instances (each managed by its own executor) for
+// a given stream ID, based on the config in the provided stream spec.
+// If there are active instances already running for that stream ID, those executors
+// are shut down, prior to the new ones being created.
+// Note that the streams are only created but not yet deployed and running. This is
+// done by calling deployStreams().
 func (s *Supervisor) createStreams(ctx context.Context, spec *entity.Spec) error {
-
 	executorMap := s.archivist.GrantExclusiveAccess()
 	defer s.archivist.RevokeExclusiveAccess()
 
-	existingExecutors, exists := (*executorMap)[spec.Id()]
-	if exists && existingExecutors != nil {
-		for _, executor := range existingExecutors {
-			executor.Shutdown(ctx)
-		}
-		(*executorMap)[spec.Id()] = nil
-	}
+	s.shutdownExecutors(ctx, executorMap, spec.Id())
 
 	for instance := 1; instance < spec.Ops.StreamsPerPod+1; instance++ {
-
 		stream, err := s.streamBuilder.Build(ctx, spec)
 		if err != nil {
 			return err
@@ -196,22 +177,25 @@ func (s *Supervisor) createStreams(ctx context.Context, spec *entity.Spec) error
 }
 
 func (s *Supervisor) shutdownStream(ctx context.Context, streamId string) {
-	executors := s.archivist.GrantExclusiveAccess()
+	executorMap := s.archivist.GrantExclusiveAccess()
 	defer s.archivist.RevokeExclusiveAccess()
-	existingExecutors, exists := (*executors)[streamId]
+	s.shutdownExecutors(ctx, executorMap, streamId)
+}
 
-	if exists && existingExecutors != nil {
-		for _, executor := range existingExecutors {
+func (s *Supervisor) shutdownExecutors(ctx context.Context, executorMap *ExecutorMap, streamId string) {
+	executors, exists := (*executorMap)[streamId]
+	if exists && executors != nil {
+		for _, executor := range executors {
 			executor.Shutdown(ctx)
 		}
-		delete(*executors, streamId)
+		delete(*executorMap, streamId)
+		(*executorMap)[streamId] = nil
 	} else {
-		s.notifier.Notify(entity.NotifyLevelWarn, "shutdownStream called for streamId %s but stream did not exist", streamId)
+		s.notifier.Notify(entity.NotifyLevelWarn, "shutdownExecutors called for streamId %s but stream did not exist", streamId)
 	}
 }
 
 func (s *Supervisor) setRegistry(ctx context.Context, registry igeist.StreamRegistry) {
-
 	s.registry = registry
 	s.RegisterExecutor(ctx, registry)
 }
@@ -274,6 +258,19 @@ func (s *Supervisor) deployStreams(ctx context.Context, streamId string) {
 			s.deployExecutor(ctx, executor)
 		}
 	}
+}
+
+func (s *Supervisor) deployAllStreams(ctx context.Context) int {
+	var nbExecutorsDeployed int
+	executorMap := s.archivist.GrantExclusiveAccess()
+	defer s.archivist.RevokeExclusiveAccess()
+	for _, executors := range *executorMap {
+		for _, executor := range executors {
+			s.deployExecutor(ctx, executor)
+			nbExecutorsDeployed++
+		}
+	}
+	return nbExecutorsDeployed
 }
 
 func (s *Supervisor) lgprfx() string {
