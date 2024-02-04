@@ -3,7 +3,7 @@ module github.com/zpiroux/geist
 go 1.19
 
 require (
-	github.com/google/uuid v1.3.1
+	github.com/google/uuid v1.6.0
 	github.com/mssola/user_agent v0.5.3
 	github.com/stretchr/testify v1.8.4
 	github.com/teltech/logger v1.3.0

@@ -285,6 +285,18 @@ var allOptionsEventSimStreamSpec = []byte(`
                             ]
                         },
                         {
+                            "field": "foo.location",
+                            "setOfStrings": {
+                                "amount": 4,
+                                "prefix": "location",
+                                "frequencyMin": 5,
+                                "frequencyMax": 10,
+                                "excludeValues": [
+                                    "location3"
+                                ]
+                            }
+                        },
+                        {
                             "field": "foo.someFlag",
                             "predefinedValues": [
                                 {
