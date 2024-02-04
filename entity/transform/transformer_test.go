@@ -700,3 +700,119 @@ func TestTransformerExcludeEventsWhitelist(t *testing.T) {
 	assert.Nil(t, output)
 	assert.NoError(t, err)
 }
+
+func TestEventSchemaEvolution(t *testing.T) {
+
+	specJson := []byte(`
+	{
+		"namespace": "geisttest",
+		"streamIdSuffix": "xcludeevents",
+		"version": 1,
+		"description": "...",
+		"source": {
+			"type": "geistapi"
+		},
+		"transform": {
+			"extractFields": [
+				{
+					"forEventsWith": [
+						{
+							"key": "version",
+							"value": "1"
+						}
+					],
+					"excludeEventsWith": [
+						{
+							"key": "provider",
+							"values": [
+								"provider_X"
+							]
+						}
+					],
+					"fields": [
+						{
+							"id": "rawEvent",
+							"type": "string"
+						}
+					]
+				},
+				{
+					"forEventsWith": [
+						{
+							"key": "version",
+							"value": "2"
+						}
+					],
+					"excludeEventsWith": [
+						{
+							"key": "serviceProvider",
+							"values": [
+								"provider_Y"
+							]
+						}
+					],
+					"fields": [
+						{
+							"id": "rawEvent",
+							"type": "string"
+						}
+					]
+				}
+			]
+		},
+		"sink": {
+			"type": "void"
+		}
+	}
+	`)
+
+	retryable := false
+	spec, err := entity.NewSpec(specJson)
+	assert.NoError(t, err)
+	require.NotNil(t, spec)
+	transformer := NewTransformer(spec)
+
+	// Event should be excluded (output == nil, err == nil)
+	eventV1 := []byte(`
+	{
+		"version": "1"
+  		"provider": "provider_X",
+  		"dateOccurred": "2020-12-13T00:45:44.559Z",
+	}`)
+	output, err := transformer.Transform(context.Background(), eventV1, &retryable)
+	assert.Nil(t, output)
+	assert.NoError(t, err)
+
+	// Event should not be excluded (output != nil, err == nil)
+	eventV1 = []byte(`
+	{
+		"version": "1"
+  		"serviceProvider": "provider_Y",
+  		"dateOccurred": "2020-12-13T00:45:44.559Z",
+	}`)
+	output, err = transformer.Transform(context.Background(), eventV1, &retryable)
+	assert.NotNil(t, output)
+	assert.NoError(t, err)
+
+	// Event should be excluded (output == nil, err == nil)
+	eventV2 := []byte(`
+	{
+		"version": 2
+  		"serviceProvider": "provider_Y",
+  		"dateOccurred": "2020-12-13T00:45:44.559Z",
+	}`)
+	output, err = transformer.Transform(context.Background(), eventV2, &retryable)
+	assert.Nil(t, output)
+	assert.NoError(t, err)
+
+	// Event should not be excluded (output != nil, err == nil)
+	eventV2 = []byte(`
+	{
+		"version": 2
+  		"serviceProvider": "provider_X",
+  		"dateOccurred": "2020-12-13T00:45:44.559Z",
+	}`)
+	output, err = transformer.Transform(context.Background(), eventV2, &retryable)
+	assert.NotNil(t, output)
+	assert.NoError(t, err)
+}

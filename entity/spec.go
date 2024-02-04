@@ -354,6 +354,13 @@ type ExtractFields struct {
 	// If ForEventsWith is empty or omitted, fields will be taken from all events.
 	ForEventsWith []ForEventsWith `json:"forEventsWith,omitempty"`
 
+	// ExcludeEventsWith inside ExtractField complements the top level ExcludeEventsWith by
+	// only being applicable for the events filtered with ForEventsWith.
+	// As an example, this simplifies event schema evolution whereby a field containing the
+	// schema version number could be governed by ForEventsWith, and event exclusion (and
+	// field extraction) are handled by this and subsequent specification constructs.
+	ExcludeEventsWith []ExcludeEventsWith `json:"excludeEventsWith,omitempty"`
+
 	// The Fields a array contains the definitions of which fields to extract for the filtered-out event
 	Fields []Field `json:"fields,omitempty"`
 }
@@ -379,7 +386,10 @@ type IdFromItemFields struct {
 }
 
 // The Key string must be on a JSON path syntax according to github.com/tidwall/gjson (see below).
-// The value field is currently limited to string values.
+// Note that while the 'Value' field in the ForEventsWith spec is of string type, the actual field
+// in the incoming event can be of for example int type in addition to string, where a match will
+// be made of its string representation. For example, if 'Value' is set to "3" and the field in the
+// incoming event is of JSON number type (int) with a value of 3, a match will be made correctly.
 type ForEventsWith struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`

@@ -77,6 +77,7 @@ type FieldSpec struct {
 	// One of the below options can be present in each field spec
 	PredefinedValues []PredefinedValue `json:"predefinedValues"`
 	RandomizedValue  *RandomizedValue  `json:"randomizedValue"`
+	SetOfStrings     *SetOfStrings     `json:"setOfStrings"`
 }
 
 // PredefinedValue enables a field to have one of many provided values set with a probability
@@ -127,6 +128,29 @@ type RandomizedValue struct {
 	// JitterMilliseconds is only applicable for the timestamp types and adds a +-delta
 	// duration to the current timestamp, based on a random value from 0 to JitterMilliseconds.
 	JitterMilliseconds int `json:"jitterMilliseconds"`
+}
+
+// SetOfStrings generates a set of string values from which a random value will be assigned
+// to the field. It has similar functionality as PredefinedValues but with two differences:
+// 1) Convenient when the number of wanted predefined values becomes very high, e.g. simulating
+// high cardinality dimensions. 2) It only supports string values.
+//
+// The format of the generated strings is "<prefix>n" where 'n' is a number from 1 to "Amount".
+//
+// If FrequencyMin and FrequencyMax is omitted or set to 0 (or with invalid values), all
+// the generated string values will have equal frequency factor (weight) when being randomly
+// chosen as the value for the field. Otherwise a random value will be given to the string
+// value to make them occur in the events with different frequency, according to the specified
+// frequency range.
+//
+// Field values that should not be present in the generated events must be specified in the
+// ExcludeValues slice.
+type SetOfStrings struct {
+	Amount        int      `json:"amount"`
+	Prefix        string   `json:"prefix"`
+	FrequencyMin  int      `json:"frequencyMin"`
+	FrequencyMax  int      `json:"frequencyMax"`
+	ExcludeValues []string `json:"excludeValues"`
 }
 
 type ExtractorFactory struct {
@@ -205,7 +229,15 @@ func newSourceSpec(spec *entity.Spec) (*SourceSpec, error) {
 		ss.SimResolutionMilliseconds = DefaultSimResolutionMilliseconds
 	}
 
+	adjustSourceSpec(&ss)
 	return &ss, validateSpecFields(ss)
+}
+
+func adjustSourceSpec(ss *SourceSpec) {
+	fields := GenerateFieldsFromSetOfStringsSpec(ss.EventSpec.Fields)
+	if len(fields) > 0 {
+		ss.EventSpec.Fields = append(ss.EventSpec.Fields, fields...)
+	}
 }
 
 func validateSpecFields(ss SourceSpec) error {
@@ -259,10 +291,7 @@ func (e *eventSim) StreamExtract(
 	retryable *bool) {
 
 	var events []entity.Event
-
-	e.notifier.Notify(entity.NotifyLevelInfo, "Starting up eventSim with source spec: %+v", e.sourceSpec)
 	rand.Seed(time.Now().UnixNano())
-
 	for {
 		sleepCtx(ctx, time.Duration(e.sourceSpec.SimResolutionMilliseconds)*time.Millisecond)
 

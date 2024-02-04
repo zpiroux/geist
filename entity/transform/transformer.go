@@ -49,7 +49,7 @@ func (t *Transformer) Transform(
 	*retryable = false
 
 	if len(t.spec.Transform.ExcludeEventsWith) > 0 {
-		if t.shouldExclude(event, &transformed) {
+		if shouldExclude(event, t.spec.Transform.ExcludeEventsWith) {
 			return nil, nil
 		}
 	}
@@ -75,10 +75,9 @@ func (t *Transformer) Transform(
 	return transformed, nil
 }
 
-func (t *Transformer) shouldExclude(event []byte, transformed *[]*entity.Transformed) (exclude bool) {
+func shouldExclude(event []byte, filters []entity.ExcludeEventsWith) (exclude bool) {
 	var value string
-
-	for _, filter := range t.spec.Transform.ExcludeEventsWith {
+	for _, filter := range filters {
 
 		valueToCheck := gjson.GetBytes(event, filter.Key)
 
@@ -134,7 +133,7 @@ func excludeIfNotInWhitelist(value string, filterValues []string) bool {
 
 func (t *Transformer) extractFieldsTransform(event []byte, transformed *[]*entity.Transformed) error {
 	for _, fieldExtraction := range t.spec.Transform.ExtractFields {
-		if applicableEvent(fieldExtraction.ForEventsWith, event) {
+		if applicableEvent(fieldExtraction.ForEventsWith, fieldExtraction.ExcludeEventsWith, event) {
 			result, err := extractFields(fieldExtraction, event)
 			if err != nil {
 				return err
@@ -148,7 +147,7 @@ func (t *Transformer) extractFieldsTransform(event []byte, transformed *[]*entit
 func (t *Transformer) extractItemsFromArrayTransform(event []byte, transformed *[]*entity.Transformed) error {
 
 	for _, itemExtraction := range t.spec.Transform.ExtractItemsFromArray {
-		if applicableEvent(itemExtraction.ForEventsWith, event) {
+		if applicableEvent(itemExtraction.ForEventsWith, nil, event) {
 			result, err := extractItemsFromArray(itemExtraction, event)
 			if err != nil {
 				return err
@@ -253,7 +252,7 @@ func applyRegExp(regex *regexp.Regexp, regexpSpec *entity.Regexp, event []byte, 
 
 // Checks all filter rules in spec to see if incoming event should be processed or not.
 // Currently only AND type of key-value filters are supported in ForEventsWith
-func applicableEvent(eventFilter []entity.ForEventsWith, event []byte) bool {
+func applicableEvent(eventFilter []entity.ForEventsWith, blacklist []entity.ExcludeEventsWith, event []byte) bool {
 
 	if len(eventFilter) == 0 {
 		return true
@@ -270,6 +269,12 @@ func applicableEvent(eventFilter []entity.ForEventsWith, event []byte) bool {
 				applicable = false
 			}
 		} else {
+			applicable = false
+		}
+	}
+
+	if applicable && blacklist != nil {
+		if shouldExclude(event, blacklist) {
 			applicable = false
 		}
 	}
