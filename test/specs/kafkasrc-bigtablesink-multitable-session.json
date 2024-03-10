@@ -93,84 +93,86 @@
    "sink": {
       "type": "bigtable",
       "config": {
-         "tables": [
-            {
-               "name": "p_master_data",
-               "rowKey": {
-                  "keys": [
-                     "custId",
-                     "pId"
-                  ],
-                  "delimiter": "#"
-               },
-               "whitelist": {
-                  "id": "name",
-                  "type": "or",
-                  "values": [
-                     "FOO_SESSION_BEGIN"
+         "customConfig": {
+            "tables": [
+               {
+                  "name": "p_master_data",
+                  "rowKey": {
+                     "keys": [
+                        "custId",
+                        "pId"
+                     ],
+                     "delimiter": "#"
+                  },
+                  "whitelist": {
+                     "id": "name",
+                     "type": "or",
+                     "values": [
+                        "FOO_SESSION_BEGIN"
+                     ]
+                  },
+                  "columnFamilies": [
+                     {
+                        "name": "d",
+                        "garbageCollectionPolicy": {
+                           "type": "maxVersions",
+                           "value": 10
+                        },
+                        "columnQualifiers": [
+                           {
+                              "id": "sessionId",
+                              "name": "sid"
+                           },
+                           {
+                              "id": "pName",
+                              "name": "pn"
+                           },
+                           {
+                              "id": "pCurrency",
+                              "name": "pc"
+                           }
+                        ]
+                     }
                   ]
                },
-               "columnFamilies": [
-                  {
-                     "name": "d",
-                     "garbageCollectionPolicy": {
-                        "type": "maxVersions",
-                        "value": 10
-                     },
-                     "columnQualifiers": [
-                        {
-                           "id": "sessionId",
-                           "name": "sid"
-                        },
-                        {
-                           "id": "pName",
-                           "name": "pn"
-                        },
-                        {
-                           "id": "pCurrency",
-                           "name": "pc"
-                        }
+               {
+                  "name": "s_master_data",
+                  "rowKey": {
+                     "keys": [
+                        "sessionId",
+                        "custId"
+                     ],
+                     "delimiter": "#"
+                  },
+                  "whitelist": {
+                     "id": "name",
+                     "type": "and",
+                     "values": [
+                        "FOO_SESSION_END"
                      ]
-                  }
-               ]
-            },
-            {
-               "name": "s_master_data",
-               "rowKey": {
-                  "keys": [
-                     "sessionId",
-                     "custId"
-                  ],
-                  "delimiter": "#"
-               },
-               "whitelist": {
-                  "id": "name",
-                  "type": "and",
-                  "values": [
-                     "FOO_SESSION_END"
+                  },
+                  "columnFamilies": [
+                     {
+                        "name": "d",
+                        "garbageCollectionPolicy": {
+                           "type": "maxVersions",
+                           "value": 10
+                        },
+                        "columnQualifiers": [
+                           {
+                              "id": "pId",
+                              "name": "pid"
+                           },
+                           {
+                              "id": "pHostIp",
+                              "name": "ip"
+                           }
+                        ]
+                     }
                   ]
-               },
-               "columnFamilies": [
-                  {
-                     "name": "d",
-                     "garbageCollectionPolicy": {
-                        "type": "maxVersions",
-                        "value": 10
-                     },
-                     "columnQualifiers": [
-                        {
-                           "id": "pId",
-                           "name": "pid"
-                        },
-                        {
-                           "id": "pHostIp",
-                           "name": "ip"
-                        }
-                     ]
-                  }
-               ]
-            }
-         ]
+               }
+            ]
+         }
       }
    }
 }

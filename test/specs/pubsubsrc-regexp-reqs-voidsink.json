@@ -1,50 +1,52 @@
 {
-  "namespace": "foo-logs-test",
-  "streamIdSuffix": "foo-logs-access",
-  "description": "A stream ingestion for Foo logs related to metric \"access\", with source from PubSub topic, RegExp transformation, and sent out onto void sink.",
-  "version": 1,
-  "ops": {
-    "logEventData": true
-  },
-  "source": {
-    "type": "pubsub",
-    "config": {
-      "topics": [
-        {
-          "env": "all",
-          "names": [
-            "foo-logs-bar-usage"
-          ]
-        }
+   "namespace": "foo-logs-test",
+   "streamIdSuffix": "foo-logs-access",
+   "description": "A stream ingestion for Foo logs related to metric \"access\", with source from PubSub topic, RegExp transformation, and sent out onto void sink.",
+   "version": 1,
+   "ops": {
+      "logEventData": true
+   },
+   "source": {
+      "type": "pubsub",
+      "config": {
+         "customConfig": {
+            "topics": [
+               {
+                  "env": "all",
+                  "names": [
+                     "foo-logs-bar-usage"
+                  ]
+               }
+            ],
+            "subscription": {
+               "type": "shared",
+               "name": "geist-foo-logs-bar-usage"
+            }
+         }
+      }
+   },
+   "transform": {
+      "extractFields": [
+         {
+            "fields": [
+               {
+                  "id": "logEvent",
+                  "jsonPath": "textPayload",
+                  "type": "string"
+               }
+            ]
+         }
       ],
-      "subscription": {
-        "type": "shared",
-        "name": "geist-foo-logs-bar-usage"
+      "regexp": {
+         "field": "logEvent",
+         "expression": "^(?P<customer>\\w[a-z0-9]*)-?(?P<reqLoc>[^\\.]*).{1}[a-z]*.{1}[a-z]*\\:?(?P<port>\\d{0,4})\\|{1}(?P<ip>.*?[^\\|])\\|.*\\[(?P<ts>[^\\]]*).*(?P<httpVerb>POST|GET|DELETE|PUT|PATCH|OPTIONS|HEAD)\\s{1}(?P<reqPath>\\/(?:\\/[^\\/]+){4}|[^\\\\?| ;]+).*HTTP\\/\\d{1}.\\d{1}\\|(?P<httpResponse>\\d*).*",
+         "timeConversion": {
+            "field": "ts",
+            "inputFormat": "02/Jan/2006:15:04:05 -0700"
+         }
       }
-    }
-  },
-  "transform": {
-    "extractFields": [
-      {
-        "fields": [
-          {
-            "id": "logEvent",
-            "jsonPath": "textPayload",
-            "type": "string"
-          }
-        ]
-      }
-    ],
-    "regexp": {
-      "field": "logEvent",
-      "expression": "^(?P<customer>\\w[a-z0-9]*)-?(?P<reqLoc>[^\\.]*).{1}[a-z]*.{1}[a-z]*\\:?(?P<port>\\d{0,4})\\|{1}(?P<ip>.*?[^\\|])\\|.*\\[(?P<ts>[^\\]]*).*(?P<httpVerb>POST|GET|DELETE|PUT|PATCH|OPTIONS|HEAD)\\s{1}(?P<reqPath>\\/(?:\\/[^\\/]+){4}|[^\\\\?| ;]+).*HTTP\\/\\d{1}.\\d{1}\\|(?P<httpResponse>\\d*).*",
-      "timeConversion": {
-        "field": "ts",
-        "inputFormat": "02/Jan/2006:15:04:05 -0700"
-      }
-    }
-  },
-  "sink": {
-    "type": "void"
-  }
+   },
+   "sink": {
+      "type": "void"
+   }
 }

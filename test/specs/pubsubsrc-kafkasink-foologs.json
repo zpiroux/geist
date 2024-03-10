@@ -6,17 +6,19 @@
    "source": {
       "type": "pubsub",
       "config": {
-         "topics": [
-            {
-               "env": "all",
-               "names": [
-                  "geisttest-foologanalytics"
-               ]
+         "customConfig": {
+            "topics": [
+               {
+                  "env": "all",
+                  "names": [
+                     "geisttest-foologanalytics"
+                  ]
+               }
+            ],
+            "subscription": {
+               "type": "shared",
+               "name": "geist-foologdata"
             }
-         ],
-         "subscription": {
-            "type": "shared",
-            "name": "geist-foologdata"
          }
       }
    },

@@ -24,29 +24,31 @@
    "sink": {
       "type": "bigtable",
       "config": {
-         "tables": [
-            {
-               "name": "geisttest_apitobigtable",
-               "rowKey": {
-                  "predefined": "timestampIso"
-               },
-               "columnFamilies": [
-                  {
-                     "name": "d",
-                     "garbageCollectionPolicy": {
-                        "type": "maxVersions",
-                        "value": 2
-                     },
-                     "columnQualifiers": [
-                        {
-                           "id": "rawEvent",
-                           "name": "event"
-                        }
-                     ]
-                  }
-               ]
-            }
-         ]
+         "customConfig": {
+            "tables": [
+               {
+                  "name": "geisttest_apitobigtable",
+                  "rowKey": {
+                     "predefined": "timestampIso"
+                  },
+                  "columnFamilies": [
+                     {
+                        "name": "d",
+                        "garbageCollectionPolicy": {
+                           "type": "maxVersions",
+                           "value": 2
+                        },
+                        "columnQualifiers": [
+                           {
+                              "id": "rawEvent",
+                              "name": "event"
+                           }
+                        ]
+                     }
+                  ]
+               }
+            ]
+         }
       }
    }
 }

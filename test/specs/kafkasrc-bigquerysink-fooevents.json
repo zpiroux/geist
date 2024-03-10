@@ -73,64 +73,66 @@
    "sink": {
       "type": "bigquery",
       "config": {
-         "tables": [
-            {
-               "name": "fooevents_v1",
-               "dataset": "geisttest",
-               "columns": [
-                  {
-                     "name": "dateIngested",
-                     "mode": "NULLABLE",
-                     "type": "TIMESTAMP",
-                     "description": "timestamp of ingestion, as used for time partitioning",
-                     "valueFromId": "@GeistIngestionTime"
-                  },
-                  {
-                     "name": "eventDate",
-                     "mode": "REQUIRED",
-                     "type": "TIMESTAMP",
-                     "description": "timestamp of the event",
-                     "valueFromId": "eventDateId"
-                  },
-                  {
-                     "name": "customerId",
-                     "mode": "NULLABLE",
-                     "type": "STRING",
-                     "description": "ID of the customer",
-                     "valueFromId": "custId"
-                  },
-                  {
-                     "nameFromId": {
-                        "prefix": "",
-                        "suffixFromId": "eventNameId",
-                        "preset": [
-                           "FOO_ROUND_BEGIN",
-                           "FOO_ROUND_FINISHED",
-                           "FOO_ROUND_TRACKING",
-                           "FOO_SESSION_BEGIN",
-                           "FOO_SESSION_END"
-                        ]
+         "customConfig": {
+            "tables": [
+               {
+                  "name": "fooevents_v1",
+                  "dataset": "geisttest",
+                  "columns": [
+                     {
+                        "name": "dateIngested",
+                        "mode": "NULLABLE",
+                        "type": "TIMESTAMP",
+                        "description": "timestamp of ingestion, as used for time partitioning",
+                        "valueFromId": "@GeistIngestionTime"
                      },
-                     "mode": "NULLABLE",
-                     "type": "STRING",
-                     "description": "raw event data",
-                     "valueFromId": "rawEventId"
-                  }
-               ],
-               "insertIdFromId": "insertId",
-               "tableCreation": {
-                  "description": "raw events from Foo Service with day partitions on ingestion time",
-                  "clustering": [
-                     "customerId"
+                     {
+                        "name": "eventDate",
+                        "mode": "REQUIRED",
+                        "type": "TIMESTAMP",
+                        "description": "timestamp of the event",
+                        "valueFromId": "eventDateId"
+                     },
+                     {
+                        "name": "customerId",
+                        "mode": "NULLABLE",
+                        "type": "STRING",
+                        "description": "ID of the customer",
+                        "valueFromId": "custId"
+                     },
+                     {
+                        "nameFromId": {
+                           "prefix": "",
+                           "suffixFromId": "eventNameId",
+                           "preset": [
+                              "FOO_ROUND_BEGIN",
+                              "FOO_ROUND_FINISHED",
+                              "FOO_ROUND_TRACKING",
+                              "FOO_SESSION_BEGIN",
+                              "FOO_SESSION_END"
+                           ]
+                        },
+                        "mode": "NULLABLE",
+                        "type": "STRING",
+                        "description": "raw event data",
+                        "valueFromId": "rawEventId"
+                     }
                   ],
-                  "timePartitioning": {
-                     "type": "DAY",
-                     "field": "dateIngested"
-                  },
-                  "requirePartitionFilter": true
+                  "insertIdFromId": "insertId",
+                  "tableCreation": {
+                     "description": "raw events from Foo Service with day partitions on ingestion time",
+                     "clustering": [
+                        "customerId"
+                     ],
+                     "timePartitioning": {
+                        "type": "DAY",
+                        "field": "dateIngested"
+                     },
+                     "requirePartitionFilter": true
+                  }
                }
-            }
-         ]
+            ]
+         }
       }
    }
 }

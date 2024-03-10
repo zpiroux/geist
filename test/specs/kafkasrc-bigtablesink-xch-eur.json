@@ -58,31 +58,33 @@
    "sink": {
       "type": "bigtable",
       "config": {
-         "tables": [
-            {
-               "name": "geisttest_xch_eur",
-               "rowKey": {
-                  "keys": [
-                     "eventDate"
-                  ]
-               },
-               "columnFamilies": [
-                  {
-                     "name": "d",
-                     "garbageCollectionPolicy": {
-                        "type": "maxVersions",
-                        "value": 1
-                     },
-                     "columnQualifiers": [
-                        {
-                           "id": "rates",
-                           "name": "rates"
-                        }
+         "customConfig": {
+            "tables": [
+               {
+                  "name": "geisttest_xch_eur",
+                  "rowKey": {
+                     "keys": [
+                        "eventDate"
                      ]
-                  }
-               ]
-            }
-         ]
+                  },
+                  "columnFamilies": [
+                     {
+                        "name": "d",
+                        "garbageCollectionPolicy": {
+                           "type": "maxVersions",
+                           "value": 1
+                        },
+                        "columnQualifiers": [
+                           {
+                              "id": "rates",
+                              "name": "rates"
+                           }
+                        ]
+                     }
+                  ]
+               }
+            ]
+         }
       }
    }
 }
