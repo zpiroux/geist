@@ -197,38 +197,16 @@ type Source struct {
 }
 
 type SourceConfig struct {
-	Topics       []Topics      `json:"topics,omitempty"`
-	Subscription *Subscription `json:"subscription,omitempty"`
 
+	// TODO: Remove the two fields below when Kafka connector has migrated to customConfig based config
+	Topics []Topics `json:"topics,omitempty"`
 	// PollTimeoutMs is a Kafka consumer specific property, specifying after how long time to return from the Poll()
 	// call, if no messages are available for consumption. If this is omitted the value will be set to GEIST config
 	// default (app.kafka.pollTimeoutMs). Normally this is not needed to be provided in the stream spec, nor changed
 	// in the config. It has no impact on throughput. A higher value will lower the cpu load on idle streams.
 	PollTimeoutMs *int `json:"pollTimeoutMs,omitempty"`
 
-	// MaxOutstandingMessages is a PubSub consumer specific property, specifying max number of fetched but not yet
-	// acknowledged messages in pubsub consumer. If this is omitted the value will be set to the loaded Pubsub entity
-	// config default.
-	// For time consuming transform/sink streams decrease this value while increasing ops.streamsPerPod
-	MaxOutstandingMessages *int `json:"maxOutstandingMessages,omitempty"`
-
-	// MaxOutstandingBytes is a PubSub consumer specific property, specifying max size of fetched but not yet
-	// acknowledged messages.
-	MaxOutstandingBytes *int `json:"maxOutstandingBytes,omitempty"`
-
-	// Synchronous can be used to tune certain type of streams (e.g. spiky input flow of messages with very heavy
-	// transforms or slow sinks), where setting this to true could reduce number of expired messages. It is optional
-	// for a source connector to implement.
-	// Default is false.
-	Synchronous *bool `json:"synchronous,omitempty"`
-
-	// NumGoroutines is a PubSub consumer specific property used for increasing rate of incoming messages in case
-	// downstream ETL is not cpu starved or blocked on sink ops, while Extractor cannot keep up with consuming
-	// incoming messages. Depending on type of Sink/Loader a better/alternative approach is to increase ops.streamsPerPod.
-	// If omitted it is set to 1.
-	NumGoroutines *int `json:"numGoroutines,omitempty"`
-
-	// Properties holds direct low-level entity properties like Kafka consumer props
+	// Properties is a generic property container
 	Properties []Property `json:"properties,omitempty"`
 
 	// SendToSource is an optional field for an extractor/source connector to support. If it does, it has the
@@ -255,28 +233,12 @@ type Topics struct {
 	Names []string    `json:"names,omitempty"`
 }
 
-type Subscription struct {
-	// Type can be:
-	//
-	// 		"shared" - meaning multiple consumers share this subscription in a competing consumer pattern.
-	//				   Only one of the subscribers will receive each event.
-	//				   If this is set, the name of the subscription needs to be present in the "Name" field.
-	//
-	//		"unique" - meaning each transloading stream instance will have its own unique subscription.
-	//				   All instances will thus get all events from the topic.
-	//				   If this is set, a unique subscription name will be created and the Name field is
-	//				   ignored. This one is used internally by each pod's Supervisor to receive notifications
-	//                 about registry updates, from other Supervisors' registry instances.
-	Type string `json:"type,omitempty"`
-
-	Name string `json:"name,omitempty"`
-}
-
 type Property struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
 
+// TODO: Remove this when the Kafka connector has migrated to customConfig based config
 type DLQ struct {
 	// Topic specifies which topic to use for DLQ events. If the extractor config does not
 	// allow topic creation, only Topic[].Name is regarded. Otherwise, additional properties
@@ -438,28 +400,18 @@ type Sink struct {
 }
 
 type SinkConfig struct {
-	Provider string      `json:"provider,omitempty"` // Available options (only used for Kafka sink): "native" and "confluent"
-	Topic    []SinkTopic `json:"topic,omitempty"`
-	Message  *Message    `json:"message,omitempty"`
-	Tables   []Table     `json:"tables,omitempty"`
-	Kinds    []Kind      `json:"kinds,omitempty"` // TODO: Probably remove array and keep single object
+	// TODO: Remove these when the Kafka connector has migrated to customConfig based config
+	Topic   []SinkTopic `json:"topic,omitempty"`
+	Message *Message    `json:"message,omitempty"`
 
 	// Synchronous is used by Kafka sink/loader to specify if ensuring each event is guaranteed to be persisted to
 	// broker (Synchronous: true), giving lower throughput (without not yet provided batch option), or if verifying
 	// delivery report asynchronously (Synchronous: false), giving much higher throughput, but could lead to
 	// message loss if GEIST crashes.
+	// TODO: Remove when the Kafka connector has migrated to customConfig based config
 	Synchronous *bool `json:"synchronous,omitempty"`
 
-	// DiscardInvalidData specifies if invalid data should be prevented from being stored in the sink and instead
-	// logged and discarded.
-	// It increases CPU load somewhat but can be useful to enable in case of data from an unreliable source is
-	// being continuously retried and where the stream's HandlingOfUnretryableEvents mode is not granular enough.
-	// One example is when having the MicroBatch mode enabled and we want to just discard individual invalid
-	// events, instead of retrying or DLQ:ing the whole micro batch.
-	// It is currently only regarded when using the BigQuery sink.
-	DiscardInvalidData bool `json:"discardInvalidData,omitempty"`
-
-	// Direct low-level entity properties like Kafka producer props
+	// Generic property container
 	Properties []Property `json:"properties,omitempty"`
 
 	// CustomConfig can be used by custom source/sink plugins for config options not explicitly provided by the Spec struct
@@ -473,6 +425,7 @@ type SinkTopic struct {
 
 // Name, NumPartitions and ReplicationFactor are required.
 // If sink topic is referring to an existing topic only Name will be used.
+// TODO: Remove when the Kafka connector has migrated to customConfig based config
 type TopicSpecification struct {
 	Name              string            `json:"name"`
 	NumPartitions     int               `json:"numPartitions"`
@@ -481,233 +434,10 @@ type TopicSpecification struct {
 }
 
 // Message is used for sinks like PubSub and Kafka, specifying how the message should be published
+// TODO: Remove when the Kafka connector has migrated to customConfig based config
 type Message struct {
 	// PayloadFromId is the key/field ID in the Transformed output map, which contains the actual message payload
 	PayloadFromId string `json:"payloadFromId,omitempty"`
-}
-
-// The Kind struct is used for Firestore sinks (in datastore mode).
-// Currently, one of EntityName or EntityNameFromIds needs to be present in spec.
-// TODO: Add creation of UUID if EntityName/Ref not present
-type Kind struct {
-	// If Namespace here is present, it will override the global one.
-	// If both are missing, the Kind will use native 'default'
-	Namespace string `json:"namespace,omitempty"`
-	Name      string `json:"name"`
-
-	// If set, will be used as the actual Entity Name
-	EntityName string `json:"entityName,omitempty"`
-
-	// If set, will be used to create the Entity Name from the "id" values in the Transload output map.
-	// The value is currently restricted to be of type string.
-	EntityNameFromIds struct {
-		Ids       []string `json:"ids,omitempty"`
-		Delimiter string   `json:"delimiter,omitempty"`
-	} `json:"entityNameFromIds,omitempty"`
-
-	Properties []EntityProperty `json:"properties,omitempty"`
-}
-
-type EntityProperty struct {
-	Name string `json:"name"`
-
-	// Id is the key/field ID in the Transformed output map, which contains the actual value
-	// for this property. The value type is the same as the output from the Transform.
-	Id string `json:"id"`
-
-	// For most properties this should be set to true, for improved query performance, but for big event
-	// fields that might exceed 1500 bytes, this should be set to false, since that is a built-in
-	// Firestore limit.
-	Index bool `json:"index"`
-}
-
-// The Table struct is used for BigTable, BigQuery and other table based sinks.
-type Table struct {
-	Name string `json:"name"`
-
-	// Dataset is optional depending on sink type. Currently only used by BigQuery.
-	Dataset string `json:"dataset"`
-
-	// DatasetCreation is only required if the dataset is meant to be created by this stream
-	// *and* if other values than the default ones are required.
-	// Default values are location: EU and empty description.
-	DatasetCreation *DatasetCreation `json:"datasetCreation,omitempty"`
-
-	// Table spec for SQL type sinks such as BigQuery
-	Columns       []Column       `json:"columns"`
-	TableCreation *TableCreation `json:"tableCreation,omitempty"`
-
-	// InsertIdFromId defines which value in the Transformed output map will contain the insert ID,
-	// as extracted from one of the input event fields.
-	// The value referred to in the transloaded output map needs to be of string type.
-	// This is used for BigQuery best-effort deduplication.
-	InsertIdFromId string `json:"insertIdFromId"`
-
-	// Table spec for BigTable are built up by RowKey and ColumnFamilies
-	RowKey         RowKey         `json:"rowKey"`
-	ColumnFamilies []ColumnFamily `json:"columnFamilies"`
-
-	// Only input transformations satisfying the whitelist key/value filter will be
-	// processed by the sink (mostly needed in multi-table Sink specs)
-	Whitelist *Whitelist `json:"whitelist,omitempty"`
-}
-
-type Column struct {
-	// Name of the column as specified at spec registration time.
-	// One of Name or NameFromId needs to be present in the column spec.
-	Name string `json:"name"`
-
-	// If NameFromId is non-nil columns will be generated dynamically based on transformation output.
-	// The name of the column will be set to the value in the Transformed map, with the key as found in NameFromId.
-	// Note that the field fetched from the event, to be the column name, need to be of string type.
-	NameFromId *NameFromId `json:"nameFromId,omitempty"`
-
-	// Mode uses the definitions as set by BigQuery with "NULLABLE", "REQUIRED" or "REPEATED"
-	Mode string `json:"mode"`
-
-	// Type uses the BigQuery Standard SQL types.
-	// The type here needs to match the one used in the Transform extract field spec.
-	// For date/time/timestamp types the type used in the Transform extract field spec needs to be set to
-	// "isoTimestamp" or "unixTimestamp".
-	Type string `json:"type"`
-
-	Description string   `json:"description"`
-	Fields      []Column `json:"fields"` // For nested columns
-
-	// ValueFromId is not part of schema definition per se, but specifies what value from the incoming
-	// transformed data that should be inserted here.
-	// A special value can be set to have a column with GEIST ingestion time, which could be used together
-	// with TimePartitioning config, as an alternative to the also available default BQ insert partitioning.
-	// To enable this, the field should be set to "@geistIngestionTime", with column type set to "TIMESTAMP"
-	// and mode set to "NULLABLE".
-	ValueFromId string `json:"valueFromId"`
-}
-
-// Creates a Column/CQ name from id outputs in transloaded event map
-type NameFromId struct {
-	Prefix       string `json:"prefix"`
-	SuffixFromId string `json:"suffixFromId"`
-
-	// Preset contains a list of Column/CQ names that will be added to table directly during table creation.
-	// This is not support (not needed) by BigTable loader, only BigQuery loader.
-	Preset []string `json:"preset,omitempty"`
-}
-
-// DatasetCreation config contains table creation details.
-// It is currently only used by BigQuery sinks.
-type DatasetCreation struct {
-	Description string `json:"description"`
-
-	// Geo location of dataset.
-	// Valid values are:
-	// EU
-	// europe
-	// US
-	// plus all regional ones as described here: https://cloud.google.com/bigquery/docs/locations
-	// If omitted or empty the default location will be set to EU.
-	Location string `json:"location"`
-}
-
-// TableCreation config contains table creation details.
-// It is currently only used by BigQuery sinks and most of the fields/comments in the struct are
-// copied directly from BQ client, with modifications to fit with the GEIST spec format.
-type TableCreation struct {
-	Description string `json:"description"`
-
-	// If non-nil, the table is partitioned by time. Only one of
-	// time partitioning or range partitioning can be specified.
-	TimePartitioning *TimePartitioning `json:"timePartitioning,omitempty"`
-
-	// If non-nil, the table is partitioned by integer range.  Only one of
-	// time partitioning or range partitioning can be specified.
-	//RangePartitioning *RangePartitioning
-
-	// If set to true, queries that reference this table must specify a
-	// partition filter (e.g. a WHERE clause) that can be used to eliminate
-	// partitions. Used to prevent unintentional full data scans on large
-	// partitioned tables.
-	RequirePartitionFilter bool `json:"requirePartitionFilter"`
-
-	// Clustering specifies the data clustering configuration for the table.
-	Clustering []string `json:"clustering,omitempty"`
-
-	// The time when this table expires. If set, this table will expire at the
-	// specified time. Expired tables will be deleted and their storage
-	// reclaimed. The zero value is ignored.
-	//ExpirationTime time.Time
-
-	// User-provided labels.
-	//Labels map[string]string
-}
-
-// TimePartitioning describes the time-based date partitioning on a table.
-// It is currently only used by BigQuery sinks and most of the fields/docs in the struct are
-// copied directly from BQ client, with modifications to fit with the GEIST spec format.
-// For more information see: https://cloud.google.com/bigquery/docs/creating-partitioned-tables.
-type TimePartitioning struct {
-	// Defines the partition interval type. Supported values are "DAY" or "HOUR".
-	Type string `json:"type"`
-
-	// The amount of hours to keep the storage for a partition.
-	// If the duration is empty (0), the data in the partitions do not expire.
-	ExpirationHours int `json:"expirationHours"`
-
-	// If empty, the table is partitioned by pseudo column '_PARTITIONTIME'; if set, the
-	// table is partitioned by this field. The field must be a top-level TIMESTAMP or
-	// DATE field. Its mode must be NULLABLE or REQUIRED.
-	Field string `json:"field"`
-}
-
-// RowKey specifies how the row-key should be generated for BigTable sinks.
-// If one of the Predefined options are set, that will be used.
-// Currently available Predefined options are:
-//
-//	"timestampIso"
-//	"invertedTimestamp"
-//	"uuid"
-//	"keysInMap"
-//
-// If Predefined is not set, the Keys array should be used to specify which extracted fields
-// from the event should be used.
-// TODO: Add padding config
-type RowKey struct {
-	Predefined string   `json:"predefined,omitempty"`
-	Keys       []string `json:"keys,omitempty"`
-	Delimiter  string   `json:"delimiter,omitempty"`
-
-	// Only required when using the Predefined rowkey option "keysInMap". This id should map to the transformed
-	// output map item specified in ExtractItemsFromArray.Id
-	MapId string `json:"mapId,omitempty"`
-}
-
-type Whitelist struct {
-	Id     string   `json:"id"`
-	Type   string   `json:"type"`
-	Values []string `json:"values"`
-}
-
-type ColumnFamily struct {
-	Name                    string                   `json:"name"`
-	GarbageCollectionPolicy *GarbageCollectionPolicy `json:"garbageCollectionPolicy"`
-	ColumnQualifiers        []ColumnQualifier        `json:"columnQualifiers"`
-}
-
-// TODO: Add support for Intersection and Union policies
-// The following types are supported:
-// - MaxVersions: where Value takes an integer of number of old versions to keep (-1)
-// - MaxAge: where Value takes an integer of number of hours before deleting the data.
-type GarbageCollectionPolicy struct {
-	Type  string `json:"type"`
-	Value int    `json:"value"`
-}
-
-// The Id field can be used directly in the Transformed map to fetch the value to be inserted
-// The Name field is the actual CQ name to be used in the table.
-// Either Name or NameFromId must be present, not both.
-type ColumnQualifier struct {
-	Id         string      `json:"id"`
-	Name       string      `json:"name,omitempty"`
-	NameFromId *NameFromId `json:"nameFromId,omitempty"`
 }
 
 // Stream spec JSON schema validation will be handled by NewSpec() using validateRawJson() against

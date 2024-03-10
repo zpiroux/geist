@@ -52,38 +52,40 @@
    "sink": {
       "type": "bigtable",
       "config": {
-         "tables": [
-            {
-               "name": "geisttest_apitobigtable_fooround",
-               "rowKey": {
-                  "keys": [
-                     "fooRoundId"
-                  ]
-               },
-               "columnFamilies": [
-                  {
-                     "name": "d",
-                     "garbageCollectionPolicy": {
-                        "type": "maxAge",
-                        "value": 48
-                     },
-                     "columnQualifiers": [
-                        {
-                           "id": "rawEventFRF",
-                           "name": "frf"
-                        },
-                        {
-                           "id": "rawEventFRT",
-                           "nameFromId": {
-                              "prefix": "frt-",
-                              "suffixFromId": "fooTrackingId"
-                           }
-                        }
+         "customConfig": {
+            "tables": [
+               {
+                  "name": "geisttest_apitobigtable_fooround",
+                  "rowKey": {
+                     "keys": [
+                        "fooRoundId"
                      ]
-                  }
-               ]
-            }
-         ]
+                  },
+                  "columnFamilies": [
+                     {
+                        "name": "d",
+                        "garbageCollectionPolicy": {
+                           "type": "maxAge",
+                           "value": 48
+                        },
+                        "columnQualifiers": [
+                           {
+                              "id": "rawEventFRF",
+                              "name": "frf"
+                           },
+                           {
+                              "id": "rawEventFRT",
+                              "nameFromId": {
+                                 "prefix": "frt-",
+                                 "suffixFromId": "fooTrackingId"
+                              }
+                           }
+                        ]
+                     }
+                  ]
+               }
+            ]
+         }
       }
    }
 }

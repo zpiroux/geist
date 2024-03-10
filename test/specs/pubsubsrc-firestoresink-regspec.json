@@ -43,25 +43,27 @@
    "sink": {
       "type": "firestore",
       "config": {
-         "kinds": [
-            {
-               "name": "EtlSpec",
-               "entityNameFromIds": {
-                  "ids": [
-                     "namespace",
-                     "idSuffix"
-                  ],
-                  "delimiter": "-"
-               },
-               "properties": [
-                  {
-                     "id": "rawEvent",
-                     "name": "specData",
-                     "index": false
-                  }
-               ]
-            }
-         ]
+         "customConfig": {
+            "kinds": [
+               {
+                  "name": "EtlSpec",
+                  "entityNameFromIds": {
+                     "ids": [
+                        "namespace",
+                        "idSuffix"
+                     ],
+                     "delimiter": "-"
+                  },
+                  "properties": [
+                     {
+                        "id": "rawEvent",
+                        "name": "specData",
+                        "index": false
+                     }
+                  ]
+               }
+            ]
+         }
       }
    }
 }

@@ -1,50 +1,52 @@
 {
-  "namespace": "foo-logs-test",
-  "streamIdSuffix": "bar-usage",
-  "description": "A stream ingestion for foo logs related to metric \"access\", with source from PubSub topic, RegExp transformation, and sent out onto void sink.",
-  "version": 1,
-  "ops": {
-    "logEventData": true
-  },
-  "source": {
-    "type": "pubsub",
-    "config": {
-      "topics": [
-        {
-          "env": "all",
-          "names": [
-            "foo-logs-bar-usage"
-          ]
-        }
+   "namespace": "foo-logs-test",
+   "streamIdSuffix": "bar-usage",
+   "description": "A stream ingestion for foo logs related to metric \"access\", with source from PubSub topic, RegExp transformation, and sent out onto void sink.",
+   "version": 1,
+   "ops": {
+      "logEventData": true
+   },
+   "source": {
+      "type": "pubsub",
+      "config": {
+         "customConfig": {
+            "topics": [
+               {
+                  "env": "all",
+                  "names": [
+                     "foo-logs-bar-usage"
+                  ]
+               }
+            ],
+            "subscription": {
+               "type": "shared",
+               "name": "geist-foo-logs-bar-usage"
+            }
+         }
+      }
+   },
+   "transform": {
+      "extractFields": [
+         {
+            "fields": [
+               {
+                  "id": "logEvent",
+                  "jsonPath": "textPayload",
+                  "type": "string"
+               }
+            ]
+         }
       ],
-      "subscription": {
-        "type": "shared",
-        "name": "geist-foo-logs-bar-usage"
+      "regexp": {
+         "field": "logEvent",
+         "expression": "^(?P<ts>.{29})\\s{1}(?P<logLevel>.*) \\s\\[LOG\\_(?P<customer>[^\\.]+).*BarService\\.(?P<method>[^\\]]+).*Invocation took: (?P<responseTime>[\\d]+)",
+         "timeConversion": {
+            "field": "ts",
+            "inputFormat": "2006-01-02 15:04:05.999 -0700"
+         }
       }
-    }
-  },
-  "transform": {
-    "extractFields": [
-      {
-        "fields": [
-          {
-            "id": "logEvent",
-            "jsonPath": "textPayload",
-            "type": "string"
-          }
-        ]
-      }
-    ],
-    "regexp": {
-      "field": "logEvent",
-      "expression": "^(?P<ts>.{29})\\s{1}(?P<logLevel>.*) \\s\\[LOG\\_(?P<customer>[^\\.]+).*BarService\\.(?P<method>[^\\]]+).*Invocation took: (?P<responseTime>[\\d]+)",
-      "timeConversion": {
-        "field": "ts",
-        "inputFormat": "2006-01-02 15:04:05.999 -0700"
-      }
-    }
-  },
-  "sink": {
-    "type": "void"
-  }
+   },
+   "sink": {
+      "type": "void"
+   }
 }

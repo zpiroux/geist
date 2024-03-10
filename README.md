@@ -329,33 +329,35 @@ The simple spec below exemplifies an autonomous stream using Kafka as source and
     "sink": {
         "type": "bigtable",
         "config": {
-            "tables": [
-                {
-                    "name": "foo_events",
-                    "rowKey": {
-                        "keys": [
-                            "someField",
-                            "someOtherField"
-                        ],
-                        "delimiter": "#"
-                    },
-                    "columnFamilies": [
-                        {
-                            "name": "d",
-                            "garbageCollectionPolicy": {
-                                "type": "maxAge",
-                                "value": 744
-                            },
-                            "columnQualifiers": [
-                                {
-                                    "id": "rawEvent",
-                                    "name": "event"
-                                }
-                            ]
-                        }
-                    ]
-                }
-            ]
+            "customConfig": {
+                "tables": [
+                    {
+                        "name": "foo_events",
+                        "rowKey": {
+                            "keys": [
+                                "someField",
+                                "someOtherField"
+                            ],
+                            "delimiter": "#"
+                        },
+                        "columnFamilies": [
+                            {
+                                "name": "d",
+                                "garbageCollectionPolicy": {
+                                    "type": "maxAge",
+                                    "value": 744
+                                },
+                                "columnQualifiers": [
+                                    {
+                                        "id": "rawEvent",
+                                        "name": "event"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
         }
     }
 }
@@ -521,13 +523,13 @@ Example of generated event:
 ``` 
 
 ## Limitations and improvement areas
-Although Geist has been run in production with heavy load, no data-loss, and zero downtime for ~three years, it makes no guarantees that all combinations of stream spec options will work fully in all cases.
+Although Geist has been run in production with heavy load, no data-loss, and zero downtime for three+ years, it makes no guarantees that all combinations of stream spec options will work fully in all cases.
 
 The following types of streams have been run extensively and concurrently with high throughput:
 
 * Kafka → BigTable
 * Kafka → BigQuery
-* Kafka → Various custom-built connectors for products both in GCP and AWS.
+* Kafka → Various custom-built connectors for products both in GCP and AWS (Redshift, S3, OpenSearch).
 
 Additionally, Pubsub as source and Firestore as sink have been used extensively but with limited traffic.
 
