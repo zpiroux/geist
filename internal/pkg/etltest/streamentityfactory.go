@@ -2,7 +2,6 @@ package etltest
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/zpiroux/geist/entity"
@@ -39,13 +38,7 @@ func (s *StreamEntityFactory) CreateExtractor(ctx context.Context, spec *entity.
 
 	switch spec.Source.Type {
 
-	case EntityKafka:
-		if spec.Source.Config.Topics[0].Env == "" {
-			return nil, errors.New("invalid topic config, no environment defined")
-		}
-		return NewMockExtractor(spec.Source.Config), nil
-
-	case EntityPubsub:
+	case EntityKafka, EntityPubsub:
 		return NewMockExtractor(spec.Source.Config), nil
 
 	case entity.EntityGeistApi:

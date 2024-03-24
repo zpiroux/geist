@@ -6,17 +6,19 @@
    "source": {
       "type": "pubsub",
       "config": {
-         "topics": [
-            {
-               "env": "all",
-               "names": [
-                  "geist-spec-reg"
-               ]
+         "customConfig": {
+            "topics": [
+               {
+                  "env": "all",
+                  "names": [
+                     "geist-spec-reg"
+                  ]
+               }
+            ],
+            "subscription": {
+               "type": "shared",
+               "name": "geist-spec-reg-sub"
             }
-         ],
-         "subscription": {
-            "type": "shared",
-            "name": "geist-spec-reg-sub"
          }
       }
    },

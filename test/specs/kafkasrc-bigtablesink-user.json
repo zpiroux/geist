@@ -9,20 +9,22 @@
    "source": {
       "type": "kafka",
       "config": {
-         "topics": [
-            {
-               "env": "all",
-               "names": [
-                  "foo.events"
-               ]
-            }
-         ],
-         "properties": [
-            {
-               "key": "group.id",
-               "value": "foons_some_user_data"
-            }
-         ]
+         "customConfig": {
+            "topics": [
+               {
+                  "env": "all",
+                  "names": [
+                     "foo.events"
+                  ]
+               }
+            ],
+            "properties": [
+               {
+                  "key": "group.id",
+                  "value": "foons_some_user_data"
+               }
+            ]
+         }
       }
    },
    "transform": {

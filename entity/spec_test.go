@@ -74,17 +74,6 @@ func TestSpecModel(t *testing.T) {
 	err = validateRawJson(specBytes)
 	assert.NoError(t, err)
 
-	// Custom environment
-	topicSpecJSON := []byte(`
-  {
-    "env": "my-cool-env",
-    "names": ["topic1", "topic2"]
-  }`)
-	var topicSpec Topics
-	err = json.Unmarshal(topicSpecJSON, &topicSpec)
-	assert.NoError(t, err)
-	assert.Equal(t, "my-cool-env", string(topicSpec.Env))
-
 	// Validate regexp compile
 	// TODO: Add test for timeconv
 	fileBytes, err = os.ReadFile("../test/specs/pubsubsrc-regexp-reqs-voidsink.json")

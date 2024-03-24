@@ -129,6 +129,7 @@ For a complete working example of providing a custom connector, see the [Emitter
 * [BigQuery (GCP)](https://github.com/zpiroux/geist-connector-bigquery)
 * [Firestore (GCP)](https://github.com/zpiroux/geist-connector-gcp)
 * [BigTable (GCP)](https://github.com/zpiroux/geist-connector-gcp)
+* Several AWS based custom connectors
 
 ## Enrichment and custom stream logic
 The native transformation entity provides a set of common transformations.
@@ -291,20 +292,22 @@ The simple spec below exemplifies an autonomous stream using Kafka as source and
     "source": {
         "type": "kafka",
         "config": {
-            "topics": [
-                {
-                    "env": "all",
-                    "names": [
-                        "foo.events"
-                    ]
-                }
-            ],
-            "properties": [
-                {
-                    "key": "group.id",
-                    "value": "my-kafkabigtable-stream"
-                }
-            ]
+            "customConfig": {
+                "topics": [
+                    {
+                        "env": "all",
+                        "names": [
+                            "foo.events"
+                        ]
+                    }
+                ],
+                "properties": [
+                    {
+                        "key": "group.id",
+                        "value": "my-kafkabigtable-stream"
+                    }
+                ]
+            }
         }
     },
     "transform": {
@@ -544,9 +547,6 @@ Geist is not meant to support complex stream processing, including stream joins 
 
 ### Event schema
 Only JSON currently supported.
-
-### Spec schema
-For historical reasons some fields in the [Spec schema](entity/spec.go) are only used for specific source/sink types, even though the `customConfig` enables any arbitrary config to be used.
 
 ## Contact
 info @ zpiroux . com
