@@ -6,20 +6,22 @@
    "source": {
       "type": "kafka",
       "config": {
-         "topics": [
-            {
-               "env": "all",
-               "topics": [
-                  "foo.events"
-               ]
-            }
-         ],
-         "properties": [
-            {
-               "key": "group.id",
-               "value": "foons_session"
-            }
-         ]
+         "customConfig": {
+            "topics": [
+               {
+                  "env": "all",
+                  "topics": [
+                     "foo.events"
+                  ]
+               }
+            ],
+            "properties": [
+               {
+                  "key": "group.id",
+                  "value": "foons_session"
+               }
+            ]
+         }
       }
    },
    "transform": {

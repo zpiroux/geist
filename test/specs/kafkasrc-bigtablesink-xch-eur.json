@@ -9,24 +9,26 @@
    "source": {
       "type": "kafka",
       "config": {
-         "topics": [
-            {
-               "env": "all",
-               "names": [
-                  "xch.rates"
-               ]
-            }
-         ],
-         "properties": [
-            {
-               "key": "group.id",
-               "value": "geisttest-xch-eur"
-            },
-            {
-               "key": "auto.offset.reset",
-               "value": "earliest"
-            }
-         ]
+         "customConfig": {
+            "topics": [
+               {
+                  "env": "all",
+                  "names": [
+                     "xch.rates"
+                  ]
+               }
+            ],
+            "properties": [
+               {
+                  "key": "group.id",
+                  "value": "geisttest-xch-eur"
+               },
+               {
+                  "key": "auto.offset.reset",
+                  "value": "earliest"
+               }
+            ]
+         }
       }
    },
    "transform": {

@@ -36,24 +36,26 @@
    "sink": {
       "type": "kafka",
       "config": {
-         "topic": [
-            {
-               "env": "all",
-               "topicSpec": {
-                  "name": "geisttest.foologdatasink",
-                  "numPartitions": 6,
-                  "replicationFactor": 3
+         "customConfig": {
+            "topic": [
+               {
+                  "env": "all",
+                  "topicSpec": {
+                     "name": "geisttest.foologdatasink",
+                     "numPartitions": 6,
+                     "replicationFactor": 3
+                  }
                }
+            ],
+            "properties": [
+               {
+                  "key": "client.id",
+                  "value": "geisttest_foologanalytics"
+               }
+            ],
+            "message": {
+               "payloadFromId": "payload"
             }
-         ],
-         "properties": [
-            {
-               "key": "client.id",
-               "value": "geisttest_foologanalytics"
-            }
-         ],
-         "message": {
-            "payloadFromId": "payload"
          }
       }
    }

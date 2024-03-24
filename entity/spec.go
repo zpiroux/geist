@@ -198,64 +198,16 @@ type Source struct {
 
 type SourceConfig struct {
 
-	// TODO: Remove the two fields below when Kafka connector has migrated to customConfig based config
-	Topics []Topics `json:"topics,omitempty"`
-	// PollTimeoutMs is a Kafka consumer specific property, specifying after how long time to return from the Poll()
-	// call, if no messages are available for consumption. If this is omitted the value will be set to GEIST config
-	// default (app.kafka.pollTimeoutMs). Normally this is not needed to be provided in the stream spec, nor changed
-	// in the config. It has no impact on throughput. A higher value will lower the cpu load on idle streams.
-	PollTimeoutMs *int `json:"pollTimeoutMs,omitempty"`
-
 	// Properties is a generic property container
 	Properties []Property `json:"properties,omitempty"`
-
-	// SendToSource is an optional field for an extractor/source connector to support. If it does, it has the
-	// following meaning:
-	// 		* If set to true: The extractors SendToSource() interface method is enabled for this particualar stream.
-	//		* If set to false: The extractors SendToSource() interface method is disabled for this particualar stream
-	// 		* If omitted: The value to use will be the default value as set when constructing the connector.
-	// One reason to have this config availble per stream is to reduce memory allocation when it's not needed.
-	SendToSource *bool
-
-	// DLQ details the options for DLQ handling and is often required if Ops.HandlingOfUnretryableEvents
-	// is set to "dlq". This is dependent on the specification options for each source connector type.
-	DLQ *DLQ `json:"dlq,omitempty"`
 
 	// CustomConfig can be used by custom source/sink plugins for config options not explicitly provided by the Spec struct
 	CustomConfig any `json:"customConfig,omitempty"`
 }
 
-type Topics struct {
-	// Env specifies for which environment/stage the topic names config should be used.
-	// Allowed values are "all" or any string matching the config provided to registered entity factories.
-	// Normally, "dev", "stage", and "prod" is used.
-	Env   Environment `json:"env,omitempty"`
-	Names []string    `json:"names,omitempty"`
-}
-
 type Property struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
-}
-
-// TODO: Remove this when the Kafka connector has migrated to customConfig based config
-type DLQ struct {
-	// Topic specifies which topic to use for DLQ events. If the extractor config does not
-	// allow topic creation, only Topic[].Name is regarded. Otherwise, additional properties
-	// such as NumPartitions and ReplicationFactor will be used as well if the topic is created
-	// (if it doesn't exist already). Since this is regarded as a sink mechanism the same type
-	// is used here as for a standard sink.
-	Topic []SinkTopic `json:"topic,omitempty"`
-
-	// Generic config map for DLQ producers
-	ProducerConfig map[string]any `json:"producerConfig,omitempty"`
-
-	// If StreamIDEnrichmentPath is not empty it specifies the JSON path (e.g.
-	// "my.enrichment.streamId") including the JSON field name, which will hold the
-	// value of the injected stream ID for the current stream. That is, before the
-	// event is sent to the DLQ the stream ID is added to a new field created in the
-	// event, if this option is used.
-	StreamIDEnrichmentPath string `json:"streamIDEnrichmentPath,omitempty"`
 }
 
 // Transform spec
@@ -387,57 +339,17 @@ type Field struct {
 
 // Sink spec
 type Sink struct {
-	// Type specifies the type of sink into which data should be loaded.
-	// Important stream constraints are noted below for each sink type where needed.
-	//
-	//		"bigquery" - Each transformed event (to be inserted as a row) should be well below 5MB to avoid
-	//                   BigQuery http request size limit of 10MB for streaming inserts.
-	//      "kafka"    - Max size of published events are default set to 2MB, but topics can set this higher
-	//                   to max 8MB.
-	Type EntityType `json:"type"`
-
+	Type   EntityType  `json:"type"`
 	Config *SinkConfig `json:"config,omitempty"`
 }
 
 type SinkConfig struct {
-	// TODO: Remove these when the Kafka connector has migrated to customConfig based config
-	Topic   []SinkTopic `json:"topic,omitempty"`
-	Message *Message    `json:"message,omitempty"`
-
-	// Synchronous is used by Kafka sink/loader to specify if ensuring each event is guaranteed to be persisted to
-	// broker (Synchronous: true), giving lower throughput (without not yet provided batch option), or if verifying
-	// delivery report asynchronously (Synchronous: false), giving much higher throughput, but could lead to
-	// message loss if GEIST crashes.
-	// TODO: Remove when the Kafka connector has migrated to customConfig based config
-	Synchronous *bool `json:"synchronous,omitempty"`
 
 	// Generic property container
 	Properties []Property `json:"properties,omitempty"`
 
 	// CustomConfig can be used by custom source/sink plugins for config options not explicitly provided by the Spec struct
 	CustomConfig any `json:"customConfig,omitempty"`
-}
-
-type SinkTopic struct {
-	Env       Environment         `json:"env,omitempty"`
-	TopicSpec *TopicSpecification `json:"topicSpec,omitempty"`
-}
-
-// Name, NumPartitions and ReplicationFactor are required.
-// If sink topic is referring to an existing topic only Name will be used.
-// TODO: Remove when the Kafka connector has migrated to customConfig based config
-type TopicSpecification struct {
-	Name              string            `json:"name"`
-	NumPartitions     int               `json:"numPartitions"`
-	ReplicationFactor int               `json:"replicationFactor"`
-	Config            map[string]string `json:"config,omitempty"` // not yet supported
-}
-
-// Message is used for sinks like PubSub and Kafka, specifying how the message should be published
-// TODO: Remove when the Kafka connector has migrated to customConfig based config
-type Message struct {
-	// PayloadFromId is the key/field ID in the Transformed output map, which contains the actual message payload
-	PayloadFromId string `json:"payloadFromId,omitempty"`
 }
 
 // Stream spec JSON schema validation will be handled by NewSpec() using validateRawJson() against
@@ -469,7 +381,7 @@ func validateRawJson(specData []byte) error {
 	return err
 }
 
-// Initial stream spec schema with only the most important checks. Will be more detailed later.
+// Stream spec schema for validation purposes
 var specSchema = []byte(`
 {
   "$schema": "http://json-schema.org/draft-07/schema",

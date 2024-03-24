@@ -9,36 +9,38 @@
    "source": {
       "type": "kafka",
       "config": {
-         "topics": [
-            {
-               "env": "dev",
-               "names": [
-                  "fooservice.events.dev"
-               ]
-            },
-            {
-               "env": "stage",
-               "names": [
-                  "fooservice.events.stage"
-               ]
-            },
-            {
-               "env": "prod",
-               "names": [
-                  "fooservice.events"
-               ]
-            }
-         ],
-         "properties": [
-            {
-               "key": "group.id",
-               "value": "geisttest-kafkatobigquery-fooevents"
-            },
-            {
-               "key": "auto.offset.reset",
-               "value": "earliest"
-            }
-         ]
+         "customConfig": {
+            "topics": [
+               {
+                  "env": "dev",
+                  "names": [
+                     "fooservice.events.dev"
+                  ]
+               },
+               {
+                  "env": "stage",
+                  "names": [
+                     "fooservice.events.stage"
+                  ]
+               },
+               {
+                  "env": "prod",
+                  "names": [
+                     "fooservice.events"
+                  ]
+               }
+            ],
+            "properties": [
+               {
+                  "key": "group.id",
+                  "value": "geisttest-kafkatobigquery-fooevents"
+               },
+               {
+                  "key": "auto.offset.reset",
+                  "value": "earliest"
+               }
+            ]
+         }
       }
    },
    "transform": {

@@ -9,32 +9,34 @@
    "source": {
       "type": "kafka",
       "config": {
-         "topics": [
-            {
-               "env": "dev",
-               "names": [
-                  "fxservice.events.dev"
-               ]
-            },
-            {
-               "env": "stage",
-               "names": [
-                  "fxservice.events.stage"
-               ]
-            },
-            {
-               "env": "prod",
-               "names": [
-                  "fxservice.events"
-               ]
-            }
-         ],
-         "properties": [
-            {
-               "key": "group.id",
-               "value": "geisttest-kafkatobigtable-featurex"
-            }
-         ]
+         "customConfig": {
+            "topics": [
+               {
+                  "env": "dev",
+                  "names": [
+                     "fxservice.events.dev"
+                  ]
+               },
+               {
+                  "env": "stage",
+                  "names": [
+                     "fxservice.events.stage"
+                  ]
+               },
+               {
+                  "env": "prod",
+                  "names": [
+                     "fxservice.events"
+                  ]
+               }
+            ],
+            "properties": [
+               {
+                  "key": "group.id",
+                  "value": "geisttest-kafkatobigtable-featurex"
+               }
+            ]
+         }
       }
    },
    "transform": {
