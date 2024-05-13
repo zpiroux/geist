@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/teltech/logger"
+	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 	"github.com/zpiroux/geist/entity"
 	"github.com/zpiroux/geist/pkg/notify"
@@ -41,6 +42,7 @@ type SourceSpec struct {
 	// Event schema and field generation specifications
 	EventGeneration EventGeneration `json:"eventGeneration"`
 	EventSpec       EventSpec       `json:"eventSpec"`
+	Overrides       []FieldOverride `json:"overrides"`
 }
 
 // EventGeneration specifies how many events should be generated for each trigger.
@@ -66,6 +68,17 @@ type EventGeneration struct {
 // EventSpec specifies the event schema
 type EventSpec struct {
 	Fields []FieldSpec `json:"fields"`
+}
+
+// FieldOverride can be used to modify one or more generated fields if certain fields
+// contains specific values. This could, for example, be used to temporarily produce
+// outlier events for specific dimension/field values, having specific field values not
+// following the normal EventSpec based pattern.
+type FieldOverride struct {
+	Disabled bool        `json:"disabled"` // convenience toggle for the override
+	Field    string      `json:"fieldToOverride"`
+	Value    string      `json:"valueTriggeringOverride"`
+	Fields   []FieldSpec `json:"fields"`
 }
 
 // FieldSpec specifies how each field should be generated
@@ -173,13 +186,15 @@ func (ef *ExtractorFactory) Close(ctx context.Context) error {
 	return nil
 }
 
+type FieldFrequencyRanges map[string][]FieldFrequencyRange
+
 // eventSim is the source extractor type executing the event sim logic
 type eventSim struct {
 	config          entity.Config
 	sourceSpec      SourceSpec
 	notifier        *notify.Notifier
 	charsets        map[string][]rune
-	frequencyRanges map[string][]FieldFrequencyRange
+	frequencyRanges FieldFrequencyRanges
 	peakTime        time.Time
 }
 
@@ -336,14 +351,44 @@ func (e *eventSim) createEvents() (events []entity.Event, err error) {
 	nbEventsToCreate := e.calculateEventCount()
 	for i := 0; i < nbEventsToCreate; i++ {
 		var event []byte
-		event, err = e.createEvent(e.sourceSpec.EventSpec)
+		event, err = e.createEvent(e.sourceSpec.EventSpec.Fields, nil, nil)
 		if err != nil {
 			return nil, err
 		}
+
+		event, err = e.adjustEvent(event)
+		if err != nil {
+			return nil, err
+		}
+
 		if e.config.Spec.Ops.LogEventData {
 			e.notifier.Notify(entity.NotifyLevelInfo, "event created: %s", string(event))
 		}
 		events = append(events, entity.Event{Data: event})
+	}
+	return
+}
+
+// adjustEvent performs postprocessing on the generated event, including handling of
+// conditional overrides, if specified in the overrides section of the spec.
+func (e *eventSim) adjustEvent(inEvent []byte) (outEvent []byte, err error) {
+	outEvent = inEvent
+	overrideSpec := e.sourceSpec.Overrides
+	if len(overrideSpec) == 0 {
+		return
+	}
+	for _, override := range overrideSpec {
+		if override.Disabled {
+			continue
+		}
+		result := gjson.GetBytes(inEvent, override.Field)
+		if result.String() != override.Value {
+			continue
+		}
+		outEvent, err = e.createEvent(override.Fields, outEvent, createFrequencyRanges(override.Fields))
+		if err != nil {
+			return
+		}
 	}
 	return
 }
@@ -373,20 +418,11 @@ func (e *eventSim) createSinusoidEventCount(eg EventGeneration) int {
 }
 
 // createEvent generates a single random event based on the event spec
-func (e *eventSim) createEvent(eventSpec EventSpec) (event []byte, err error) {
-
+func (e *eventSim) createEvent(fieldSpecs []FieldSpec, baseEvent []byte, frequencyRanges FieldFrequencyRanges) (event []byte, err error) {
 	var value any
-	for _, fieldSpec := range eventSpec.Fields {
-
-		switch {
-
-		case len(fieldSpec.PredefinedValues) > 0:
-			value = e.createFieldValueWithFrequencyFactor(e.frequencyRanges[fieldSpec.Field])
-
-		case fieldSpec.RandomizedValue != nil:
-			value, err = e.createRandomizedFieldValue(fieldSpec)
-		}
-
+	event = baseEvent
+	for _, fieldSpec := range fieldSpecs {
+		value, err = e.createFieldValue(fieldSpec, frequencyRanges)
 		if err != nil {
 			return event, err
 		}
@@ -397,6 +433,22 @@ func (e *eventSim) createEvent(eventSpec EventSpec) (event []byte, err error) {
 		}
 	}
 	return event, err
+}
+
+func (e *eventSim) createFieldValue(fieldSpec FieldSpec, frequencyRanges FieldFrequencyRanges) (value any, err error) {
+	switch {
+	case len(fieldSpec.PredefinedValues) > 0:
+		var fr FieldFrequencyRanges
+		if frequencyRanges == nil {
+			fr = e.frequencyRanges
+		} else {
+			fr = frequencyRanges
+		}
+		value = e.createFieldValueWithFrequencyFactor(fr[fieldSpec.Field])
+	case fieldSpec.RandomizedValue != nil:
+		value, err = e.createRandomizedFieldValue(fieldSpec)
+	}
+	return
 }
 
 // createRandomizedFieldValue handles the fieldSpec option "randomizedValue"
@@ -518,9 +570,9 @@ type FieldFrequencyRange struct {
 
 // createFrequencyRanges prepares the data to be used for generating dimension values
 // with the requested distribution/value frequency.
-func createFrequencyRanges(fields []FieldSpec) map[string][]FieldFrequencyRange {
+func createFrequencyRanges(fields []FieldSpec) FieldFrequencyRanges {
 
-	ranges := make(map[string][]FieldFrequencyRange)
+	ranges := make(FieldFrequencyRanges)
 	for _, fieldSpec := range fields {
 
 		var (

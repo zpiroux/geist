@@ -137,7 +137,7 @@ func testPredefValues(t *testing.T, tc TestCase, eventSim *eventSim) {
 		PredefinedValues: []PredefinedValue{{Value: "pre-prepped at init"}},
 		RandomizedValue:  tc.randValue,
 	}
-	event, err := eventSim.createEvent(EventSpec{Fields: []FieldSpec{fieldToGenerate}})
+	event, err := eventSim.createEvent([]FieldSpec{fieldToGenerate}, nil, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, tc.expectedEvent, event, string(event))
 }
@@ -214,6 +214,15 @@ func reportEvent(ctx context.Context, events []entity.Event) entity.EventProcess
 	} else {
 		return entity.EventProcessingResult{Status: entity.ExecutorStatusShutdown, ResourceId: "no-resource-id"}
 	}
+}
+
+func TestOverrides(t *testing.T) {
+	expectedGeneratedEvent := `{"foo":{"berry":"blueberry","popularity":1}}`
+	eventSim := newEventSimForTesting(t, eventSimSpecForOverrideValidation, nil)
+	events, err := eventSim.createEvents()
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	require.Equal(t, expectedGeneratedEvent, string(events[0].Data))
 }
 
 var allOptionsEventSimStreamSpec = []byte(`
@@ -450,6 +459,80 @@ var eventSimSpecForGenValidation = []byte(`
     "sink": {
         "type": "void",
         "config": {}
+    }
+}
+`)
+
+var eventSimSpecForOverrideValidation = []byte(`
+{
+    "namespace": "my",
+    "streamIdSuffix": "event-sim-stream-with-overrides",
+    "description": "Event sim stream for testing override functionality",
+    "version": 1,
+    "source": {
+        "type": "eventsim",
+        "config": {
+            "customConfig": {
+                "eventSpec": {
+                    "fields": [
+                        {
+                            "field": "foo.berry",
+                            "predefinedValues": [
+                                {
+                                    "value": "blueberry"
+                                }
+                            ]
+                        },
+                        {
+                            "field": "foo.popularity",
+                            "predefinedValues": [
+                                {
+                                    "value": 3
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "overrides": [
+                    {
+                        "fieldToOverride": "foo.berry",
+                        "valueTriggeringOverride": "blueberry",
+                        "fields": [
+                            {
+                                "field": "foo.popularity",
+                                "predefinedValues": [
+                                    {
+                                        "value": 1
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    },
+    "transform": {
+        "extractFields": [
+            {
+                "fields": [
+                    {
+                        "id": "rawEvent"
+                    }
+                ]
+            }
+        ]
+    },
+    "sink": {
+        "type": "void",
+        "config": {
+            "properties": [
+                {
+                    "key": "logEventData",
+                    "value": "true"
+                }
+            ]
+        }
     }
 }
 `)
