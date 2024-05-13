@@ -4,10 +4,10 @@ go 1.19
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/mssola/user_agent v0.5.3
-	github.com/stretchr/testify v1.8.4
+	github.com/mssola/user_agent v0.6.0
+	github.com/stretchr/testify v1.9.0
 	github.com/teltech/logger v1.3.0
-	github.com/tidwall/gjson v1.17.0
+	github.com/tidwall/gjson v1.17.1
 	github.com/tidwall/sjson v1.2.5
 	github.com/xeipuuv/gojsonschema v1.2.0
 )
