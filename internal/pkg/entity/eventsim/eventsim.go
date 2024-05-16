@@ -75,10 +75,12 @@ type EventSpec struct {
 // outlier events for specific dimension/field values, having specific field values not
 // following the normal EventSpec based pattern.
 type FieldOverride struct {
-	Disabled bool        `json:"disabled"` // convenience toggle for the override
-	Field    string      `json:"fieldToOverride"`
-	Value    string      `json:"valueTriggeringOverride"`
-	Fields   []FieldSpec `json:"fields"`
+	Disabled  bool `json:"disabled"` // convenience toggle for the override
+	Condition struct {
+		Field string `json:"field"`
+		Value string `json:"value"`
+	} `json:"condition"`
+	Fields []FieldSpec `json:"fields"`
 }
 
 // FieldSpec specifies how each field should be generated
@@ -378,11 +380,11 @@ func (e *eventSim) adjustEvent(inEvent []byte) (outEvent []byte, err error) {
 		return
 	}
 	for _, override := range overrideSpec {
-		if override.Disabled {
+		if override.Disabled || override.Condition.Field == "" {
 			continue
 		}
-		result := gjson.GetBytes(inEvent, override.Field)
-		if result.String() != override.Value {
+		result := gjson.GetBytes(inEvent, override.Condition.Field)
+		if result.String() != override.Condition.Value {
 			continue
 		}
 		outEvent, err = e.createEvent(override.Fields, outEvent, createFrequencyRanges(override.Fields))

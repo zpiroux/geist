@@ -68,12 +68,8 @@ func (s *StreamEntityFactory) CreateSinkExtractor(ctx context.Context, spec *ent
 }
 
 func (s *StreamEntityFactory) CreateTransformer(ctx context.Context, spec *entity.Spec) (igeist.Transformer, error) {
-
 	// Currently only supporting native GEIST Transformations
-	switch spec.Transform.ImplId {
-	default:
-		return transform.NewTransformer(spec), nil
-	}
+	return transform.NewTransformer(spec), nil
 }
 
 func (s *StreamEntityFactory) CreateLoader(ctx context.Context, spec *entity.Spec, instanceId string) (entity.Loader, error) {
