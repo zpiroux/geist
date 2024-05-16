@@ -495,8 +495,10 @@ var eventSimSpecForOverrideValidation = []byte(`
                 },
                 "overrides": [
                     {
-                        "fieldToOverride": "foo.berry",
-                        "valueTriggeringOverride": "blueberry",
+                        "condition": {
+                            "field": "foo.berry",
+                            "value": "blueberry"
+                        },
                         "fields": [
                             {
                                 "field": "foo.popularity",

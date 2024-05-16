@@ -211,10 +211,13 @@ type Property struct {
 }
 
 // Transform spec
+// In contrast to the other stream entities (Source/Sink Connectors), it is currently
+// not possible to register new custom Transform ones via GEIST API.
+// This might change in a future release to simplify extension of custom transformation
+// logic. Fow now, custom logic can still be achieved via the Transform hook functions,
+// as configured in geist.Config.Hooks.
 type Transform struct {
-	// ImplId denotes the Implementation ID (type of Transform implementation).
-	// The GEIST built-in type is named 'native' and is currently the only one supported
-	// TODO: Change this name to type? or just id?
+	// TODO: Remove. Legacy construct.
 	ImplId EntityType `json:"implId,omitempty"`
 
 	// ExcludeEventsWith will be checked first to exclude events, matching conditions,
