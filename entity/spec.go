@@ -239,6 +239,10 @@ type Transform struct {
 	// The Regexp transformation transforms a string into a JSON based on the groupings in
 	// the regular expression. Minimum one groupings needs to be made.
 	Regexp *Regexp `json:"regexp,omitempty"`
+
+	// CustomConfig can be used by custom enrichment logic, executed via the Pre/PostTransformHookFuncs,
+	// to enable arbitrary config schemas applicable for each client's enrichment needs.
+	CustomConfig any `json:"customConfig,omitempty"`
 }
 
 func (t *Transform) Validate() (err error) {
