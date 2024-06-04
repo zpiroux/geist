@@ -225,6 +225,10 @@ type Transform struct {
 	// handled as OR type of filters.
 	ExcludeEventsWith []ExcludeEventsWith `json:"excludeEventsWith,omitempty"`
 
+	// ExcludeEventsWithMultipleConditions will be checked to exclude events based on a
+	// combination of conditions. If multiple items are provided they are handled as OR type of filters.
+	ExcludeEventsWithMultipleConditions []ExcludeEventsWithMultipleConditions `json:"excludeEventsWithMultipleConditions,omitempty"`
+
 	// The ExtractFields transformation type picks out fields from the input event JSON.
 	// The first ExtractFields object that matches the ForEventsWith filter will be used
 	// to create the resulting Transformed object.
@@ -261,6 +265,14 @@ type ExcludeEventsWith struct {
 	Values       []string `json:"values,omitempty"`
 	ValuesNotIn  []string `json:"valuesNotIn,omitempty"`
 	ValueIsEmpty *bool    `json:"valueIsEmpty,omitempty"`
+}
+
+// ExcludeEventsWithMultipleConditions allows us to combine multiple ExcludeEventsWith filters.
+// All the Filters must be true for the event to be excluded, i.e. AND type of filter.
+// Suitable for more complex event exclusion scenarios, where the combination of fields should be
+// taken into account for filtering.
+type ExcludeEventsWithMultipleConditions struct {
+	Filters []ExcludeEventsWith `json:"filters"`
 }
 
 // The ExtractFields transformation type creates root level ID fields, with values
