@@ -701,6 +701,97 @@ func TestTransformerExcludeEventsWhitelist(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestTransformerCompositeExcludeEventsWith(t *testing.T) {
+	specJson := []byte(`
+	{
+		"namespace": "geisttest",
+		"streamIdSuffix": "xcludeeventsmultipleconditions",
+		"version": 1,
+		"description": "...",
+		"source": {
+			"type": "geistapi"
+		},
+		"transform": {
+		"excludeEventsWithMultipleConditions": [
+			{
+				"filters": [
+					{
+						"key": "name",
+							"valuesNotIn": ["NICE_EVENT", "COOL_EVENT"]
+						},
+						{
+							"key": "provider",
+							"values": ["unreliableService"]
+						}
+					]
+				},
+				{
+					"filters": [
+						{
+							"key": "name2",
+							"valuesNotIn": ["NICE_EVENT", "COOL_EVENT"]
+						},
+						{
+							"key": "provider2",
+							"values": ["unreliableService"]
+						}
+					]
+				}
+			],
+			"extractFields": [
+				{
+					"fields": [
+						{
+							"id": "rawEvent",
+							"type": "string"
+						}
+					]
+				}
+			]
+		},
+		"sink": {
+			"type": "void"
+		}
+	}
+	`)
+
+	retryable := false
+	spec, err := entity.NewSpec(specJson)
+	assert.NoError(t, err)
+	require.NotNil(t, spec)
+	transformer := NewTransformer(spec)
+
+	uselessEventFromUnreliableService := []byte(`
+	{
+		"name": "USELESS_EVENT",
+		"provider": "unreliableService"
+	}`)
+
+	// Event should be excluded (output == nil, err == nil)
+	output, err := transformer.Transform(context.Background(), uselessEventFromUnreliableService, &retryable)
+	assert.Nil(t, output)
+	assert.NoError(t, err)
+
+	uselessEvent := []byte(`
+	{
+		"name": "USELESS_EVENT",
+	}`)
+	// Event should not be excluded (output == nil, err == nil), because it does not match all the conditions
+	output, err = transformer.Transform(context.Background(), uselessEvent, &retryable)
+	assert.NotNil(t, output)
+	assert.NoError(t, err)
+
+	uselessEventFromUnreliableService2 := []byte(`
+	{
+		"name2": "USELESS_EVENT",
+		"provider2": "unreliableService"
+	}`)
+	// Event should be excluded (output == nil, err == nil)
+	output, err = transformer.Transform(context.Background(), uselessEventFromUnreliableService2, &retryable)
+	assert.Nil(t, output)
+	assert.NoError(t, err)
+}
+
 func TestEventSchemaEvolution(t *testing.T) {
 
 	specJson := []byte(`

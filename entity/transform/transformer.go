@@ -54,6 +54,14 @@ func (t *Transformer) Transform(
 		}
 	}
 
+	if len(t.spec.Transform.ExcludeEventsWithMultipleConditions) > 0 {
+		for _, excludeEventsWithMultipleConditions := range t.spec.Transform.ExcludeEventsWithMultipleConditions {
+			if shouldExcludeIfAllTrue(event, excludeEventsWithMultipleConditions.Filters) {
+				return nil, nil
+			}
+		}
+	}
+
 	if len(t.spec.Transform.ExtractFields) > 0 {
 		if err := t.extractFieldsTransform(event, &transformed); err != nil {
 			return nil, err
@@ -102,6 +110,15 @@ func shouldExclude(event []byte, filters []entity.ExcludeEventsWith) (exclude bo
 		}
 	}
 	return
+}
+
+func shouldExcludeIfAllTrue(event []byte, filters []entity.ExcludeEventsWith) (exclude bool) {
+	for _, filter := range filters {
+		if !shouldExclude(event, []entity.ExcludeEventsWith{filter}) {
+			return false
+		}
+	}
+	return true
 }
 
 func excludeIfEmpty(value string, filterValueIsEmpty *bool) bool {
