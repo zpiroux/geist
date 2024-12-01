@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tidwall/sjson"
 	"github.com/zpiroux/geist/entity"
 )
 
@@ -133,6 +134,9 @@ var testSpec3 = []byte(`
    }
 }`)
 
+// TestGeist tests geist end-to-end functionality.
+// Note that the time.Sleep() calls are only used for improved log readability of the
+// test output.
 func TestGeist(t *testing.T) {
 
 	ctx := context.Background()
@@ -169,7 +173,7 @@ func TestGeist(t *testing.T) {
 	wgGeist.Wait()
 	close(notifyChan)
 	wgNotifyHandler.Wait()
-	assert.Equal(t, 35, nbNotificationEvents)
+	assert.Equal(t, 53, nbNotificationEvents)
 }
 
 func handleNotificationEvents(ch entity.NotifyChan, wg *sync.WaitGroup, nbEvents *int) {
@@ -313,20 +317,56 @@ func geistTest(ctx context.Context, geist *Geist, wg *sync.WaitGroup, t *testing
 	eventId, err = geist.Publish(ctx, "non-existent stream id", event)
 	assert.Empty(t, eventId)
 	assert.True(t, errors.Is(err, ErrInvalidStreamId))
+	time.Sleep(time.Second)
 
+	// Test env specific spec disabling.
+	// First with non-applicable environment --> no impact on global disable field.
+	// Then with applicable environment --> global disabled should be changed from
+	// false to true.
+	// Create a new test spec by modifying test2 spec.
+	testSpec2aID := "geist-test2a"
+	testSpec2a, err := sjson.SetBytes(testSpec2, "streamIdSuffix", "test2a")
+	assert.NoError(t, err)
+	testSpec2a, err = sjson.SetBytes(testSpec2a, "opsPerEnv.staging.disabled", true)
+	assert.NoError(t, err)
+	id2, err = geist.RegisterStream(ctx, testSpec2a)
+	assert.NoError(t, err)
+	assert.Equal(t, testSpec2aID, id2)
+	specBytesOut, err = geist.GetStreamSpec(ctx, testSpec2aID)
+	assert.NoError(t, err)
+	spec, err = entity.NewSpec(specBytesOut)
+	assert.NoError(t, err)
+	assert.Equal(t, false, spec.Disabled)
+	time.Sleep(time.Second)
+
+	testSpec2a, err = sjson.SetBytes(testSpec2a, "opsPerEnv.prod.disabled", true)
+	assert.NoError(t, err)
+	testSpec2a, err = sjson.SetBytes(testSpec2a, "version", 2)
+	assert.NoError(t, err)
+	id2, err = geist.RegisterStream(ctx, testSpec2a)
+	assert.NoError(t, err)
+	assert.Equal(t, testSpec2aID, id2)
+	specBytesOut, err = geist.GetStreamSpec(ctx, testSpec2aID)
+	assert.NoError(t, err)
+	spec, err = entity.NewSpec(specBytesOut)
+	assert.NoError(t, err)
+	assert.Equal(t, true, spec.Disabled)
+	time.Sleep(time.Second)
+
+	// Tests completed, shut down geist
 	err = geist.Shutdown(ctx)
 	assert.NoError(t, err)
 
 	expectedMetrics = map[string]entity.Metrics{
-		AdminSpec: {EventsProcessed: 3, Microbatches: 3, EventsStoredInSink: 3, SinkOperations: 3},
-		RegSpec:   {EventsProcessed: 3, Microbatches: 3, EventsStoredInSink: 3, SinkOperations: 3},
+		AdminSpec: {EventsProcessed: 5, Microbatches: 5, EventsStoredInSink: 5, SinkOperations: 5},
+		RegSpec:   {EventsProcessed: 5, Microbatches: 5, EventsStoredInSink: 5, SinkOperations: 5},
 		TestSpec1: {EventsProcessed: 1, Microbatches: 1, EventsStoredInSink: 1, SinkOperations: 1},
 		TestSpec2: {EventsProcessed: 1, Microbatches: 1, EventsStoredInSink: 1, SinkOperations: 1},
 	}
 	metrics := geist.Metrics()
 	assertEqualMetrics(t, expectedMetrics, metrics)
 	for stream, m := range metrics {
-		if stream != TestSpec3 {
+		if stream != TestSpec3 && stream != testSpec2aID {
 			assert.True(t, m.BytesProcessed > 0, stream)
 			assert.True(t, m.BytesIngested > 0, stream)
 		}

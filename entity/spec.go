@@ -102,6 +102,11 @@ type Ops struct {
 	// If omitted it is set to DefaultStreamsPerPod (1).
 	StreamsPerPod int `json:"streamsPerPod"`
 
+	// Disabled has the same meaning as the root level field with the same name. It is
+	// available here as well in order to enable granular overrides per environment.
+	// If this is omitted, the root level field will be used.
+	Disabled *bool `json:"disabled,omitempty"`
+
 	// MicroBatch specifies if events should be processed in batches, which improves throughput.
 	// If set to 'true' the involved stream entities try their best to process events in batches according
 	// to each ETL entity's capability for micro-batch processing.
@@ -487,6 +492,9 @@ var specSchema = []byte(`
       "properties": {
         "streamsPerPod": {
           "type": "integer"
+        },
+        "disabled": {
+          "type": "boolean"
         },
         "microBatch": {
           "type": "boolean"
