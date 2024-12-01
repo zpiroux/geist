@@ -276,6 +276,22 @@ The environment string to match with the one provided in the spec is set in `gei
 
 If `opsPerEnv` is provided and a match is found for the deployed environment type, the specified `opsPerEnv` config will be set as the main `"ops"` specification to use in this specific deployment.
 
+The `opsPerEnv` section can also be used to manage the execution status per environment. If the field `"disabled"` is specified and set to either `true` or `false` this value will override the root level (global) `"disable"` field.
+
+The example below will have the stream executing only in the environment labeled `prod-x`.
+```json
+  "opsPerEnv": {
+    "prod-x": {
+      "disabled": false
+    },
+    "prod-y": {
+      "disabled": true
+    }
+  }
+```
+For more information see the section "Updating or disabling a stream" below.
+
+
 
 ### Example spec
 The simple spec below exemplifies an autonomous stream using Kafka as source and BigTable as sink, inserting raw events in a table with a single column named `event`, row-key as `<fooId>#<barType>`, and a TTL of 31 days.
@@ -374,6 +390,8 @@ A running stream can be updated dynamically with a new call to `geist.RegisterSt
 
 To disable a spec it needs to have the root field `"disabled"` added and set to `true`. This will shut down all the stream's executors directly.
 To enable the stream again, do a new update of spec (increase version number) and set `"disabled"` to `false`.
+
+For a description of a more granular and environment specific config option related to disabling of streams, see the section "Operational Config".
 
 ## Getting information about/from streams
 The following data can be retrieved:
@@ -526,7 +544,7 @@ Example of generated event:
 ``` 
 
 ## Limitations and improvement areas
-Although Geist has been run in production with heavy load, no data-loss, and zero downtime for three+ years, it makes no guarantees that all combinations of stream spec options will work fully in all cases.
+Although Geist has been run in production with heavy load, no data-loss, and zero downtime for four+ years, it makes no guarantees that all combinations of stream spec options will work fully in all cases.
 
 The following types of streams have been run extensively and concurrently with high throughput:
 

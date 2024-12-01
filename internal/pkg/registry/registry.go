@@ -99,6 +99,9 @@ func (r *StreamRegistry) adjustOpsConfig(spec *entity.Spec) (*entity.Spec, error
 	}
 	spec.Ops = ops
 	spec.Ops.EnsureValidDefaults()
+	if spec.Ops.Disabled != nil {
+		spec.Disabled = *spec.Ops.Disabled
+	}
 	return spec, nil
 }
 
