@@ -37,7 +37,8 @@ type Executor struct {
 	cancel             context.CancelFunc // CancelFunc for shutting down Extractor
 	id                 string
 	notifier           *notify.Notifier
-	shutdownInProgress bool // TODO: not important but add mutex on this
+	shutdownInProgress bool
+	shutdownMutex      sync.RWMutex
 	executorMetrics    ProcessingMetrics
 	sinkMetrics        ProcessingMetrics
 }
@@ -121,7 +122,9 @@ func (e *Executor) Run(ctx context.Context, wg *sync.WaitGroup) {
 		retryable bool
 	)
 
+	e.shutdownMutex.Lock()
 	e.ctx, e.cancel = context.WithCancel(ctx)
+	e.shutdownMutex.Unlock()
 	defer e.runExit(wg)
 	e.notifier.Notify(entity.NotifyLevelInfo, "Starting up")
 
@@ -179,7 +182,10 @@ func (e *Executor) ProcessEvent(ctx context.Context, events []entity.Event) enti
 
 	defer e.processEventExit(time.Now().UnixMicro())
 
-	if e.shutdownInProgress {
+	e.shutdownMutex.RLock()
+	shutdown := e.shutdownInProgress
+	e.shutdownMutex.RUnlock()
+	if shutdown {
 		e.notifier.Notify(entity.NotifyLevelWarn, "ProcessEvent called while shutdown in progress, rejecting event processing in this stream instance")
 		result.Error = nil
 		result.Status = entity.ExecutorStatusShutdown
@@ -347,7 +353,8 @@ func (e *Executor) processEventExit(startTime int64) {
 }
 
 func (e *Executor) Shutdown(ctx context.Context) {
-	e.shutdownInProgress = true // TODO: protect with mutex (not urgent)
+	e.shutdownMutex.Lock()
+	e.shutdownInProgress = true
 	e.notifier.Notify(entity.NotifyLevelInfo, "Shutting down")
 
 	// Shut down Extractor
@@ -356,7 +363,7 @@ func (e *Executor) Shutdown(ctx context.Context) {
 	} else {
 		e.notifier.Notify(entity.NotifyLevelWarn, "Shutdown request received before started running")
 	}
-
+	e.shutdownMutex.Unlock()
 	e.stream.Loader().Shutdown(ctx)
 }
 
